@@ -56,6 +56,7 @@ static uint8_t *data_buffer = NULL;
 static uint8_t sample;
 static uint8_t sample_max;
 static uint8_t sample_min;
+static uint8_t sample_histogram[256];
 static uint8_t sample_avg;
 static pa_usec_t latency;
 static pa_buffer_attr ba = {
@@ -158,8 +159,21 @@ void regulator_test() {
 }
 
 void regulator_guess() {
+    long counter;
+    size_t i;
+    data_buffer_fraction_second = 20;
+    data_buffer_reads = 15 * data_buffer_fraction_second;
     regulator_init();
-    printf("this is regulator_guess().  I'm a stub function.\n");
+    for (counter = 0; counter < data_buffer_reads; counter += 1) {
+        regulator_read_buffer();
+        memset(sample_histogram, 0, sizeof(sample_histogram));
+        for (i = 0; i < data_buffer_size; i += 1) {
+            sample_histogram[data_buffer[i]] += 1;
+        }
+    }
+    for (i = 0; i < sizeof(sample_histogram); i += 1) {
+        printf("%3d %3d\n", i, sample_histogram[i]);
+    }
 }
 
 void regulator_usage() {
@@ -248,6 +262,13 @@ void regulator_read_buffer() {
     sample_max = 0;
     for (i = 0; i < data_buffer_size; i += 1) {
         sample = data_buffer[i];
+        if (ss.format == PA_SAMPLE_U8) {
+            if (sample < 128) {
+                sample = 128 - sample;
+            } else {
+                sample = sample - 128;
+            }
+        }
         sample_sum += sample;
         if (sample < sample_min) {
             sample_min = sample;
