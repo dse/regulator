@@ -8,12 +8,11 @@ LDFLAGS += $(LDFLAGS_LIBPULSE_SIMPLE)
 
 SOURCES = $(wildcard *.c)
 OBJECTS = $(patsubst %.c, %.o, $(SOURCES))
-EXECUTABLES = regulator tester
+EXECUTABLES = regulator
 
 all: $(EXECUTABLES)
 
 regulator: regulator.o
-tester: tester.o
 
 clean:
 	rm $(OBJECTS) $(EXECUTABLES)
