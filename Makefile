@@ -15,4 +15,4 @@ all: $(EXECUTABLES)
 regulator: regulator.o
 
 clean:
-	rm $(OBJECTS) $(EXECUTABLES)
+	rm $(OBJECTS) $(EXECUTABLES) || true
