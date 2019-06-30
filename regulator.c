@@ -27,6 +27,7 @@ void regulator_test();
 void regulator_guess();
 void regulator_options(int *argcp, char * const **argvp);
 void regulator_read_buffer();
+void regulator_show_vu();
 
 static char *progname;
 
@@ -59,10 +60,10 @@ static int error = 0;
 static char ss_string[BUFSIZE];
 static size_t data_buffer_size;
 static uint8_t *data_buffer = NULL;
-static uint8_t sample;
 static uint8_t sample_max;
 static uint8_t sample_min;
 static uint8_t sample_histogram[256];
+static long sample_histogram_cum[256];
 static uint8_t sample_avg;
 static pa_usec_t latency;
 static pa_buffer_attr ba = {
@@ -74,8 +75,8 @@ static pa_buffer_attr ba = {
 };
 
 static int data_buffer_seconds         = 1;
-static int data_buffer_fraction_second = 1;
-static int data_buffer_reads           = 0;
+static int data_buffer_fraction_second = 20;
+static int data_buffer_reads           = 20;
 
 /* mainly for defaults */
 void regulator_preinit() {
@@ -94,9 +95,11 @@ void regulator_init() {
         exit(1);
     }
 
-    data_buffer_size = pa_bytes_per_second(&ss) * data_buffer_seconds / data_buffer_fraction_second;
+    data_buffer_size = pa_bytes_per_second(&ss) / data_buffer_fraction_second;
     ba.maxlength = data_buffer_size;
     ba.fragsize = data_buffer_size;
+
+    data_buffer_reads = data_buffer_seconds * data_buffer_fraction_second;
 
     printf("%s: data_buffer_size = %ld\n", progname, (long)data_buffer_size);
 
@@ -133,52 +136,74 @@ void regulator_run() {
 
 void regulator_test() {
     long counter;
-    data_buffer_fraction_second = 20;
-    data_buffer_reads = 0;
     regulator_init();
-    for (counter = 0;
-         (!data_buffer_reads) || (counter < data_buffer_reads);
-         counter += 1) {
-        int min;
-        int max;
-        int avg;
-        int i;
+    for (counter = 0; !data_buffer_reads || (counter < data_buffer_reads); counter += 1) {
         regulator_read_buffer();
-        min = sample_min / 4; /* 0..63 */
-        max = sample_max / 4; /* 0..63 */
-        avg = sample_avg / 4;
         printf("%8ld: ", counter);
-        for (i = 0; i < 64; i += 1) {
-            if (i == avg) {
-                putchar('*');
-            } else if (i < min) {
-                putchar(' ');
-            } else if (i <= max) {
-                putchar('-');
-            } else {
-                putchar(' ');
-            }
-        }
-        putchar('\r');
-        fflush(stdout);
+        regulator_show_vu();
     }
+}
+
+void regulator_show_vu() {
+    int min;
+    int max;
+    int avg;
+    int i;
+    min = sample_min / 4; /* 0..63 */
+    max = sample_max / 4; /* 0..63 */
+    avg = sample_avg / 4;
+    putchar('[');
+    for (i = 0; i < 64; i += 1) {
+        if (i == avg) {
+            putchar('*');
+        } else if (i < min) {
+            putchar(' ');
+        } else if (i <= max) {
+            putchar('-');
+        } else {
+            putchar(' ');
+        }
+    }
+    putchar(']');
+    putchar('\r');
+    fflush(stdout);
 }
 
 void regulator_guess() {
     long counter;
-    size_t i;
-    data_buffer_fraction_second = 20;
-    data_buffer_reads = 15 * data_buffer_fraction_second;
+    long i;
+    long max;
+    data_buffer_seconds = 3;
     regulator_init();
-    for (counter = 0; counter < data_buffer_reads; counter += 1) {
+    for (counter = 0; !data_buffer_reads || (counter < data_buffer_reads); counter += 1) {
         regulator_read_buffer();
+        printf("%8ld: ", counter);
+        regulator_show_vu();
         memset(sample_histogram, 0, sizeof(sample_histogram));
-        for (i = 0; i < data_buffer_size; i += 1) {
+        for (i = 0; i < (long)data_buffer_size; i += 1) {
             sample_histogram[data_buffer[i]] += 1;
         }
     }
-    for (i = 0; i < sizeof(sample_histogram); i += 1) {
-        printf("%3d %3d\n", i, sample_histogram[i]);
+    max = sizeof(sample_histogram);
+    if (ss.format == PA_SAMPLE_U8) {
+        long cum = 0;
+        max = max / 2;
+        for (i = max - 1; i >= 0; i -= 1) {
+            cum += sample_histogram[i];
+            sample_histogram_cum[i] = cum;
+        }
+        for (i = 0; i < max; i += 1) {
+            printf("%3ld %3d %6f\n",
+                   (long)i,
+                   sample_histogram[i],
+                   sample_histogram_cum[i] * 1.0 / data_buffer_size);
+        }
+    } else {
+        for (i = 0; i < max; i += 1) {
+            printf("%3ld %3d\n",
+                   (long)i,
+                   sample_histogram[i]);
+        }
     }
 }
 
@@ -260,6 +285,8 @@ void regulator_options(int *argcp, char * const **argvp) {
 void regulator_read_buffer() {
     size_t i;
     long sample_sum = 0;
+    uint8_t *samplep;
+    uint8_t sample;
     if (pa_simple_read(s, data_buffer, data_buffer_size, &error) < 0) {
         fprintf(stderr, "%s: pa_simple_read failed: %s\n", progname, pa_strerror(error));
         exit(1);
@@ -267,14 +294,15 @@ void regulator_read_buffer() {
     sample_min = 255;
     sample_max = 0;
     for (i = 0; i < data_buffer_size; i += 1) {
-        sample = data_buffer[i];
+        samplep = data_buffer + i;
         if (ss.format == PA_SAMPLE_U8) {
-            if (sample < 128) {
-                sample = 128 - sample;
+            if (*samplep < 128) {
+                *samplep = 128 - *samplep;
             } else {
-                sample = sample - 128;
+                *samplep = *samplep - 128;
             }
         }
+        sample = *samplep;
         sample_sum += sample;
         if (sample < sample_min) {
             sample_min = sample;
