@@ -15,12 +15,22 @@
 #include <stdlib.h>
 #include <getopt.h>
 
+/* PulseAudio */
 #include <pulse/simple.h>
 #include <pulse/error.h>
-
 #define BUFSIZE 1024
 
+/* libavcodec */
+#include <libavutil/frame.h>
+#include <libavutil/mem.h>
+#include <libavcodec/avcodec.h>
+#define AUDIO_INBUF_SIZE 20480
+#define AUDIO_REFILL_THRESH 4096
+
 void regulator_preinit();
+void regulator_init();
+void regulator_pulseaudio_init();
+void regulator_avcodec_init();
 void regulator_usage();
 void regulator_run();
 void regulator_test();
@@ -51,11 +61,9 @@ int main(int argc, char * const argv[]) {
 }
 
 static pa_simple *s = NULL;
-static pa_sample_spec ss = {
-    .format   = PA_SAMPLE_U8,
-    .rate     = 44100,
-    .channels = 1
-};
+static pa_sample_spec ss = { .format   = PA_SAMPLE_U8,
+                             .rate     = 44100,
+                             .channels = 1 };
 static int error = 0;
 static char ss_string[BUFSIZE];
 static size_t data_buffer_size;
@@ -66,17 +74,16 @@ static uint8_t sample_histogram[256];
 static long sample_histogram_cum[256];
 static uint8_t sample_avg;
 static pa_usec_t latency;
-static pa_buffer_attr ba = {
-    .maxlength = 44100,
-    .minreq    = 0,
-    .prebuf    = 0,
-    .tlength   = 0,
-    .fragsize  = 44100
-};
+static pa_buffer_attr ba = { .maxlength = 44100,
+                             .minreq    = 0,
+                             .prebuf    = 0,
+                             .tlength   = 0,
+                             .fragsize  = 44100 };
 
 static int data_buffer_seconds         = 1;
 static int data_buffer_fraction_second = 20;
 static int data_buffer_reads           = 20;
+static char *audio_filename            = NULL;
 
 /* mainly for defaults */
 void regulator_preinit() {
@@ -85,6 +92,31 @@ void regulator_preinit() {
 
 /* after options are set */
 void regulator_init() {
+    if (audio_filename == NULL) {
+        regulator_pulseaudio_init();
+    } else {
+        regulator_avcodec_init();
+    }
+}
+
+static AVPacket *pkt;
+static FILE *f;
+
+void regulator_avcodec_init() {
+    pkt = av_packet_alloc();
+    if (!pkt) {
+        fprintf(stderr, "%s: av_packet_alloc() failed\n", progname);
+        exit(1);
+    }
+    f = fopen(audio_filename, "rb");
+    if (!f) {
+        fprintf(stderr, "%s: cannot open %s: %s", progname, audio_filename, strerror(errno));
+        exit(1);
+    }
+}
+
+/* after options are set */
+void regulator_pulseaudio_init() {
     /* sanity check */
     if (!pa_sample_spec_valid(&ss)) {
         fprintf(stderr, "%s: invalid sample specification\n", progname);
@@ -215,25 +247,28 @@ void regulator_usage() {
     puts("    run");
     puts("options:");
     puts("    -h, --help                  display this message");
+    puts("    -f, --file=<file>           read data from sound file");
 }
 
 void regulator_options(int *argcp, char * const **argvp) {
     int c;
 
-    char optstring[] = "h";
+    char optstring[] = "hf";
     const char *longoptname;
-    static struct option long_options[] = {
-        /* name, has_arg, flag, val */
-        { "help",   no_argument, 0, 'h' },
-        { "44100",  no_argument, 0, 0 },
-        { "48000",  no_argument, 0, 0 },
-        { "96000",  no_argument, 0, 0 },
-        { "192000", no_argument, 0, 0 },
-        { "alaw",   no_argument, 0, 0 },
-        { "mulaw",  no_argument, 0, 0 },
-        { "pcm",    no_argument, 0, 0 },
-        { 0,      0,           0, 0   }
-    };
+    static struct option long_options[] =
+        {
+         /* name,    has_arg,           flag, val */
+         { "help",   no_argument,       NULL, 'h' },
+         { "44100",  no_argument,       NULL, 0   },
+         { "48000",  no_argument,       NULL, 0   },
+         { "96000",  no_argument,       NULL, 0   },
+         { "192000", no_argument,       NULL, 0   },
+         { "alaw",   no_argument,       NULL, 0   },
+         { "mulaw",  no_argument,       NULL, 0   },
+         { "pcm",    no_argument,       NULL, 0   },
+         { "file",   required_argument, NULL, 'f' },
+         { NULL,     0,                 NULL, 0   }
+        };
 
     while (1) {
         /* int this_option_optind = optind ? optind : 1; */
@@ -267,13 +302,27 @@ void regulator_options(int *argcp, char * const **argvp) {
                 exit(1);
             }
             break;
-        case '?':
+        case 'f':
+            if (audio_filename) {
+                free(audio_filename);
+            }
+            audio_filename = strdup(optarg);
+            if (!audio_filename) {
+                perror(progname);
+                exit(1);
+            }
             break;
         case 'h':
             regulator_usage();
             exit(0);
+        case '?':
+            printf("%s: unknown or ambiguous option: %s\n", progname, "?"); /* FIXME */
+            exit(1);
+        case ':':
+            printf("%s: option missing argument: %s\n", progname, "?"); /* FIXME */
+            exit(1);
         default:
-            printf("%s: ?? getopt returned character code 0%o ??\n", progname, c);
+            printf("%s: ?? getopt returned character code 0x%02x ??\n", progname, c);
             exit(1);
         }
     }
