@@ -20,6 +20,7 @@ void regulator_run();
 void regulator_test();
 void regulator_guess();
 void regulator_options(int *argcp, char * const **argvp);
+void regulator_read_buffer();
 
 static char *progname;
 
@@ -28,10 +29,13 @@ int main(int argc, char * const argv[]) {
     progname = argv[0];
     regulator_options(&argc, &argv);
     if (!argc || !strcmp(argv[0], "run")) {
+        printf("%s: running regulator_run()\n", progname);
         regulator_run();
     } else if (!strcmp(argv[0], "test")) {
+        printf("%s: running regulator_test()\n", progname);
         regulator_test();
     } else if (!strcmp(argv[0], "guess")) {
+        printf("%s: running regulator_guess()\n", progname);
         regulator_guess();
     } else {
         fprintf(stderr, "%s: unknown command: %s\n", progname, argv[0]);
@@ -39,28 +43,36 @@ int main(int argc, char * const argv[]) {
     }
 }
 
-static pa_simple *s;
-static pa_sample_spec ss;
-static int error;
+static pa_simple *s = NULL;
+static pa_sample_spec ss = {
+    .format   = PA_SAMPLE_U8,
+    .rate     = 44100,
+    .channels = 1
+};
+static int error = 0;
 static char ss_string[BUFSIZE];
 static size_t data_buffer_size;
-static uint8_t *data_buffer;
-static size_t i, j, k, l;
+static uint8_t *data_buffer = NULL;
 static uint8_t sample;
 static uint8_t sample_max;
 static uint8_t sample_min;
+static uint8_t sample_avg;
 static pa_usec_t latency;
-static long counter;
-static pa_buffer_attr ba;
+static pa_buffer_attr ba = {
+    .maxlength = 44100,
+    .minreq    = 0,
+    .prebuf    = 0,
+    .tlength   = 0,
+    .fragsize  = 44100
+};
 
 static int data_buffer_seconds         = 1;
 static int data_buffer_fraction_second = 1;
+static int data_buffer_reads           = 0;
 
 /* mainly for defaults */
 void regulator_preinit() {
-    ss.format   = PA_SAMPLE_U8;
-    ss.channels = 1;
-    ss.rate     = 44100;
+    /* stub function */
 }
 
 /* after options are set */
@@ -79,8 +91,10 @@ void regulator_init() {
     ba.maxlength = data_buffer_size;
     ba.fragsize = data_buffer_size;
 
+    printf("%s: data_buffer_size = %ld\n", progname, (long)data_buffer_size);
+
     pa_sample_spec_snprint(ss_string, BUFSIZE, &ss);
-    fprintf(stderr, "%s: %s\n", progname, ss_string);
+    printf("%s: %s\n", progname, ss_string);
 
     s = pa_simple_new(NULL,             /* server name */
                       progname,         /* name */
@@ -103,54 +117,49 @@ void regulator_init() {
     printf("%s: latency is %f seconds\n", progname, 0.000001 * latency);
 
     data_buffer = (uint8_t *)malloc(data_buffer_size);
-
-    for (;;) {
-        fprintf(stderr, "%s: reading data\n", progname);
-        if (pa_simple_read(s, data_buffer, data_buffer_size, &error) < 0) {
-            fprintf(stderr, "%s: pa_simple_read failed: %s\n", progname, pa_strerror(error));
-            exit(1);
-        }
-        fprintf(stderr, "%s: processing data\n", progname);
-        for (i = 0; i < (data_buffer_size / 100); i += 1) {
-            sample_min = 255;
-            sample_max = 0;
-            for (j = 0; j < 100; j += 1) {
-                sample = data_buffer[i * 100 + j];
-                if (sample < sample_min) {
-                    sample_min = sample;
-                }
-                if (sample > sample_max) {
-                    sample_max = sample;
-                }
-            }
-            j = sample_min / 4;
-            k = sample_max / 4;
-            printf("%3d %3d ", sample_min, sample_max);
-            for (l = 0; l < 255 / 4; l += 1) {
-                putchar(l < j ? ' ' : l <= k ? '-' : ' ');
-            }
-            putchar('\n');
-        }
-        exit(0);
-    }
 }
 
 void regulator_run() {
     regulator_init();
-    for (;;) {
-    }
+    printf("this is regulator_run().  I'm a stub function.\n");
 }
 
 void regulator_test() {
+    long counter;
+    data_buffer_fraction_second = 20;
+    data_buffer_reads = 0;
     regulator_init();
-    for (;;) {
+    for (counter = 0;
+         (!data_buffer_reads) || (counter < data_buffer_reads);
+         counter += 1) {
+        int min;
+        int max;
+        int avg;
+        int i;
+        regulator_read_buffer();
+        min = sample_min / 4; /* 0..63 */
+        max = sample_max / 4; /* 0..63 */
+        avg = sample_avg / 4;
+        printf("%8ld: ", counter);
+        for (i = 0; i < 64; i += 1) {
+            if (i == avg) {
+                putchar('*');
+            } else if (i < min) {
+                putchar(' ');
+            } else if (i <= max) {
+                putchar('-');
+            } else {
+                putchar(' ');
+            }
+        }
+        putchar('\r');
+        fflush(stdout);
     }
 }
 
 void regulator_guess() {
     regulator_init();
-    for (;;) {
-    }
+    printf("this is regulator_guess().  I'm a stub function.\n");
 }
 
 void regulator_usage() {
@@ -175,6 +184,9 @@ void regulator_options(int *argcp, char * const **argvp) {
         { "48000",  no_argument, 0, 0 },
         { "96000",  no_argument, 0, 0 },
         { "192000", no_argument, 0, 0 },
+        { "alaw",   no_argument, 0, 0 },
+        { "mulaw",  no_argument, 0, 0 },
+        { "pcm",    no_argument, 0, 0 },
         { 0,      0,           0, 0   }
     };
 
@@ -198,6 +210,12 @@ void regulator_options(int *argcp, char * const **argvp) {
                 ss.rate = 96000;
             } else if (!strcmp(longoptname, "192000")) {
                 ss.rate = 192000;
+            } else if (!strcmp(longoptname, "alaw")) {
+                ss.format = PA_SAMPLE_ALAW;
+            } else if (!strcmp(longoptname, "mulaw")) {
+                ss.format = PA_SAMPLE_ULAW;
+            } else if (!strcmp(longoptname, "pcm")) {
+                ss.format = PA_SAMPLE_U8;
             } else {
                 fprintf(stderr, "%s: option not implemented: --%s\n",
                         progname, longoptname);
@@ -217,4 +235,26 @@ void regulator_options(int *argcp, char * const **argvp) {
     *argcp -= optind;
     *argvp += optind;
     optind = 0;
+}
+
+void regulator_read_buffer() {
+    size_t i;
+    long sample_sum = 0;
+    if (pa_simple_read(s, data_buffer, data_buffer_size, &error) < 0) {
+        fprintf(stderr, "%s: pa_simple_read failed: %s\n", progname, pa_strerror(error));
+        exit(1);
+    }
+    sample_min = 255;
+    sample_max = 0;
+    for (i = 0; i < data_buffer_size; i += 1) {
+        sample = data_buffer[i];
+        sample_sum += sample;
+        if (sample < sample_min) {
+            sample_min = sample;
+        }
+        if (sample > sample_max) {
+            sample_max = sample;
+        }
+    }
+    sample_avg = (sample_sum + 128) / data_buffer_size;
 }
