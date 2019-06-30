@@ -1,3 +1,9 @@
+/**
+ * regulator.c --- clock regulator tool
+ *
+ * Copyright (C) 2019 Darren Embry.  GPL2.
+ */
+
 #ifdef HAVE_CONFIG_H
 #include <config.h>
 #endif /* HAVE_CONFIG_H */
