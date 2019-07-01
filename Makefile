@@ -1,10 +1,9 @@
 CC = clang
 
-CFLAGS_LIBPULSE_SIMPLE  = $(shell pkg-config --cflags libpulse-simple)
-LDFLAGS_LIBPULSE_SIMPLE = $(shell pkg-config --libs   libpulse-simple)
+LIBRARIES = libpulse-simple sndfile
 
-CFLAGS  += -g -Wall -Wextra $(CFLAGS_LIBPULSE_SIMPLE)
-LDFLAGS += $(LDFLAGS_LIBPULSE_SIMPLE)
+CFLAGS  += -g -Wall -Wextra $(shell pkg-config --cflags $(LIBRARIES))
+LDFLAGS += $(shell pkg-config --libs $(LIBRARIES))
 
 SOURCES = $(wildcard *.c)
 OBJECTS = $(patsubst %.c, %.o, $(SOURCES))
