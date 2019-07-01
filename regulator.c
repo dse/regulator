@@ -197,9 +197,38 @@ void regulator_pulseaudio_run() {
         exit(1);
     }
 
+    size_t i;
+    int16_t *samplep;
+
     while (1) {
-        regulator_read_buffer();
-        regulator_show_vu();
+        if (pa_simple_read(pa_s, sample_buffer, sample_buffer_bytes, &pa_error) < 0) {
+            fprintf(stderr, "%s: pa_simple_read failed: %s\n", progname, pa_strerror(pa_error));
+            exit(1);
+        }
+
+        /* if on a big-endian system, convert from little endian by swapping bytes, lol */
+        if (!IS_LITTLE_ENDIAN) {
+            char *a;
+            char *b;
+            for (i = 0; i < sample_buffer_samples; i += 1) {
+                a = (char *)(sample_buffer + i);
+                b = a + 1;
+
+                /* swap */
+                *a = *a ^ *b;
+                *b = *a ^ *b;
+                *a = *a ^ *b;
+            }
+        }
+
+        for (i = 0; i < sample_buffer_samples; i += 1) {
+            samplep = sample_buffer + i;
+            if (*samplep == INT16_MIN) { /* -32768 => 32767 */
+                *samplep = INT16_MAX;
+            } else if (*samplep < 0) {
+                *samplep = -*samplep;
+            }
+        }
     }
 }
 
@@ -327,37 +356,4 @@ void regulator_options(int *argcp, char * const **argvp) {
     *argcp -= optind;
     *argvp += optind;
     optind = 0;
-}
-
-void regulator_read_buffer() {
-    size_t i;
-    int16_t *samplep;
-    if (pa_simple_read(pa_s, sample_buffer, sample_buffer_bytes, &pa_error) < 0) {
-        fprintf(stderr, "%s: pa_simple_read failed: %s\n", progname, pa_strerror(pa_error));
-        exit(1);
-    }
-
-    /* if on a big-endian system, convert from little endian by swapping bytes, lol */
-    if (!IS_LITTLE_ENDIAN) {
-        char *a;
-        char *b;
-        for (i = 0; i < sample_buffer_samples; i += 1) {
-            a = (char *)(sample_buffer + i);
-            b = a + 1;
-
-            /* swap */
-            *a = *a ^ *b;
-            *b = *a ^ *b;
-            *a = *a ^ *b;
-        }
-    }
-
-    for (i = 0; i < sample_buffer_samples; i += 1) {
-        samplep = sample_buffer + i;
-        if (*samplep == INT16_MIN) { /* -32768 => 32767 */
-            *samplep = INT16_MAX;
-        } else if (*samplep < 0) {
-            *samplep = -*samplep;
-        }
-    }
 }
