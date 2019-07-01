@@ -20,8 +20,12 @@
 #include <pulse/error.h>
 #define PA_SAMPLE_SPEC_BUFSIZE 1024
 
+/* sndfile */
+#include <sndfile.h>
+
 void regulator_init();
 void regulator_pulseaudio_init();
+void regulator_sndfile_init();
 void regulator_usage();
 void regulator_run();
 void regulator_test();
@@ -50,29 +54,29 @@ int main(int argc, char * const argv[]) {
     }
 }
 
-static pa_simple *s = NULL;
-static pa_sample_spec ss = { .format   = PA_SAMPLE_U8,
+static pa_simple *pa_s = NULL;
+static pa_sample_spec pa_ss = { .format   = PA_SAMPLE_U8,
                              .rate     = 44100,
                              .channels = 1 };
-static int error = 0;
-static char ss_string[PA_SAMPLE_SPEC_BUFSIZE];
-static size_t data_buffer_size;
-static uint8_t *data_buffer = NULL;
-static uint8_t sample_max;
-static uint8_t sample_min;
-static uint8_t sample_histogram[256];
-static long sample_histogram_cum[256];
-static uint8_t sample_avg;
-static pa_usec_t latency;
-static pa_buffer_attr ba = { .maxlength = 44100,
+static int pa_error = 0;
+static char pa_ss_string[PA_SAMPLE_SPEC_BUFSIZE];
+static size_t pa_data_buffer_size;
+static uint8_t *pa_data_buffer = NULL;
+static uint8_t pa_sample_max;
+static uint8_t pa_sample_min;
+static uint8_t pa_sample_histogram[256];
+static long pa_sample_histogram_cum[256];
+static uint8_t pa_sample_avg;
+static pa_usec_t pa_latency;
+static pa_buffer_attr pa_ba = { .maxlength = 44100,
                              .minreq    = 0,
                              .prebuf    = 0,
                              .tlength   = 0,
                              .fragsize  = 44100 };
 
-static int data_buffer_seconds         = 1;
-static int data_buffer_fraction_second = 20;
-static int data_buffer_reads           = 20;
+static int pa_data_buffer_seconds         = 1;
+static int pa_data_buffer_fraction_second = 20;
+static int pa_data_buffer_reads           = 20;
 static char *audio_filename            = NULL;
 
 /* after options are set */
@@ -80,54 +84,75 @@ void regulator_init() {
     if (audio_filename == NULL) {
         regulator_pulseaudio_init();
     } else {
+        regulator_sndfile_init();
         exit(0);
     }
+}
+
+SNDFILE* sf;
+SF_INFO sfinfo = { .frames     = 0,
+                   .samplerate = 0,
+                   .channels   = 0,
+                   .format     = 0, /* set to 0 before reading */
+                   .sections   = 0,
+                   .seekable   = 0 };
+
+void regulator_sndfile_init() {
+    sf = sf_open(audio_filename, SFM_READ, &sfinfo);
+    if (!sf) {
+        fprintf(stderr, "%s: unable to open %s: %s\n", progname, audio_filename, sf_strerror(NULL));
+        exit(1);
+    }
+    printf("%s: %ld frames\n", progname, (long)sfinfo.frames);
+    printf("%s: %ld sample rate\n", progname, (long)sfinfo.samplerate);
+    printf("%s: %ld channels\n", progname, (long)sfinfo.channels);
+    printf("%s: %ld sections\n", progname, (long)sfinfo.sections);
 }
 
 /* after options are set */
 void regulator_pulseaudio_init() {
     /* sanity check */
-    if (!pa_sample_spec_valid(&ss)) {
+    if (!pa_sample_spec_valid(&pa_ss)) {
         fprintf(stderr, "%s: invalid sample specification\n", progname);
         exit(1);
     }
-    if (!pa_sample_rate_valid(ss.rate)) {
+    if (!pa_sample_rate_valid(pa_ss.rate)) {
         fprintf(stderr, "%s: invalid sample rate\n", progname);
         exit(1);
     }
 
-    data_buffer_size = pa_bytes_per_second(&ss) / data_buffer_fraction_second;
-    ba.maxlength = data_buffer_size;
-    ba.fragsize = data_buffer_size;
+    pa_data_buffer_size = pa_bytes_per_second(&pa_ss) / pa_data_buffer_fraction_second;
+    pa_ba.maxlength = pa_data_buffer_size;
+    pa_ba.fragsize = pa_data_buffer_size;
 
-    data_buffer_reads = data_buffer_seconds * data_buffer_fraction_second;
+    pa_data_buffer_reads = pa_data_buffer_seconds * pa_data_buffer_fraction_second;
 
-    printf("%s: data_buffer_size = %ld\n", progname, (long)data_buffer_size);
+    printf("%s: pa_data_buffer_size = %ld\n", progname, (long)pa_data_buffer_size);
 
-    pa_sample_spec_snprint(ss_string, PA_SAMPLE_SPEC_BUFSIZE, &ss);
-    printf("%s: %s\n", progname, ss_string);
+    pa_sample_spec_snprint(pa_ss_string, PA_SAMPLE_SPEC_BUFSIZE, &pa_ss);
+    printf("%s: %s\n", progname, pa_ss_string);
 
-    s = pa_simple_new(NULL,             /* server name */
-                      progname,         /* name */
-                      PA_STREAM_RECORD, /* direction */
-                      NULL,             /* device name or default */
-                      "record",         /* stream name */
-                      &ss,              /* sample type */
-                      NULL,             /* channel map */
-                      &ba,              /* buffering attributes */
-                      &error);          /* error code */
-    if (!s) {
-        fprintf(stderr, "%s: pa_simple_new() failed: %s\n", progname, pa_strerror(error));
+    pa_s = pa_simple_new(NULL,             /* server name */
+                         progname,         /* name */
+                         PA_STREAM_RECORD, /* direction */
+                         NULL,             /* device name or default */
+                         "record",         /* stream name */
+                         &pa_ss,           /* sample type */
+                         NULL,             /* channel map */
+                         &pa_ba,           /* buffering attributes */
+                         &pa_error);       /* error code */
+    if (!pa_s) {
+        fprintf(stderr, "%s: pa_simple_new() failed: %s\n", progname, pa_strerror(pa_error));
         exit(1);
     }
 
-    if ((latency = pa_simple_get_latency(s, &error)) == (pa_usec_t)-1) {
-        fprintf(stderr, "%s: pa_simple_get_latency() failed: %s\n", progname, pa_strerror(error));
+    if ((pa_latency = pa_simple_get_latency(pa_s, &pa_error)) == (pa_usec_t)-1) {
+        fprintf(stderr, "%s: pa_simple_get_latency() failed: %s\n", progname, pa_strerror(pa_error));
         exit(1);
     }
-    printf("%s: latency is %f seconds\n", progname, 0.000001 * latency);
+    printf("%s: latency is %f seconds\n", progname, 0.000001 * pa_latency);
 
-    data_buffer = (uint8_t *)malloc(data_buffer_size);
+    pa_data_buffer = (uint8_t *)malloc(pa_data_buffer_size);
 }
 
 void regulator_run() {
@@ -138,7 +163,7 @@ void regulator_run() {
 void regulator_test() {
     long counter;
     regulator_init();
-    for (counter = 0; !data_buffer_reads || (counter < data_buffer_reads); counter += 1) {
+    for (counter = 0; !pa_data_buffer_reads || (counter < pa_data_buffer_reads); counter += 1) {
         regulator_read_buffer();
         printf("%8ld: ", counter);
         regulator_show_vu();
@@ -150,9 +175,9 @@ void regulator_show_vu() {
     int max;
     int avg;
     int i;
-    min = sample_min / 4; /* 0..63 */
-    max = sample_max / 4; /* 0..63 */
-    avg = sample_avg / 4;
+    min = pa_sample_min / 4; /* 0..63 */
+    max = pa_sample_max / 4; /* 0..63 */
+    avg = pa_sample_avg / 4;
     putchar('[');
     for (i = 0; i < 64; i += 1) {
         if (i == avg) {
@@ -174,36 +199,36 @@ void regulator_guess() {
     long counter;
     long i;
     long max;
-    data_buffer_seconds = 3;
+    pa_data_buffer_seconds = 3;
     regulator_init();
-    for (counter = 0; !data_buffer_reads || (counter < data_buffer_reads); counter += 1) {
+    for (counter = 0; !pa_data_buffer_reads || (counter < pa_data_buffer_reads); counter += 1) {
         regulator_read_buffer();
         printf("%8ld: ", counter);
         regulator_show_vu();
-        memset(sample_histogram, 0, sizeof(sample_histogram));
-        for (i = 0; i < (long)data_buffer_size; i += 1) {
-            sample_histogram[data_buffer[i]] += 1;
+        memset(pa_sample_histogram, 0, sizeof(pa_sample_histogram));
+        for (i = 0; i < (long)pa_data_buffer_size; i += 1) {
+            pa_sample_histogram[pa_data_buffer[i]] += 1;
         }
     }
-    max = sizeof(sample_histogram);
-    if (ss.format == PA_SAMPLE_U8) {
+    max = sizeof(pa_sample_histogram);
+    if (pa_ss.format == PA_SAMPLE_U8) {
         long cum = 0;
         max = max / 2;
         for (i = max - 1; i >= 0; i -= 1) {
-            cum += sample_histogram[i];
-            sample_histogram_cum[i] = cum;
+            cum += pa_sample_histogram[i];
+            pa_sample_histogram_cum[i] = cum;
         }
         for (i = 0; i < max; i += 1) {
             printf("%3ld %3d %6f\n",
                    (long)i,
-                   sample_histogram[i],
-                   sample_histogram_cum[i] * 1.0 / data_buffer_size);
+                   pa_sample_histogram[i],
+                   pa_sample_histogram_cum[i] * 1.0 / pa_data_buffer_size);
         }
     } else {
         for (i = 0; i < max; i += 1) {
             printf("%3ld %3d\n",
                    (long)i,
-                   sample_histogram[i]);
+                   pa_sample_histogram[i]);
         }
     }
 }
@@ -252,19 +277,19 @@ void regulator_options(int *argcp, char * const **argvp) {
         case 0:
             longoptname = long_options[option_index].name;
             if (!strcmp(longoptname, "44100")) {
-                ss.rate = 44100;
+                pa_ss.rate = 44100;
             } else if (!strcmp(longoptname, "48000")) {
-                ss.rate = 48000;
+                pa_ss.rate = 48000;
             } else if (!strcmp(longoptname, "96000")) {
-                ss.rate = 96000;
+                pa_ss.rate = 96000;
             } else if (!strcmp(longoptname, "192000")) {
-                ss.rate = 192000;
+                pa_ss.rate = 192000;
             } else if (!strcmp(longoptname, "alaw")) {
-                ss.format = PA_SAMPLE_ALAW;
+                pa_ss.format = PA_SAMPLE_ALAW;
             } else if (!strcmp(longoptname, "mulaw")) {
-                ss.format = PA_SAMPLE_ULAW;
+                pa_ss.format = PA_SAMPLE_ULAW;
             } else if (!strcmp(longoptname, "pcm")) {
-                ss.format = PA_SAMPLE_U8;
+                pa_ss.format = PA_SAMPLE_U8;
             } else {
                 fprintf(stderr, "%s: option not implemented: --%s\n",
                         progname, longoptname);
@@ -305,15 +330,15 @@ void regulator_read_buffer() {
     long sample_sum = 0;
     uint8_t *samplep;
     uint8_t sample;
-    if (pa_simple_read(s, data_buffer, data_buffer_size, &error) < 0) {
-        fprintf(stderr, "%s: pa_simple_read failed: %s\n", progname, pa_strerror(error));
+    if (pa_simple_read(pa_s, pa_data_buffer, pa_data_buffer_size, &pa_error) < 0) {
+        fprintf(stderr, "%s: pa_simple_read failed: %s\n", progname, pa_strerror(pa_error));
         exit(1);
     }
-    sample_min = 255;
-    sample_max = 0;
-    for (i = 0; i < data_buffer_size; i += 1) {
-        samplep = data_buffer + i;
-        if (ss.format == PA_SAMPLE_U8) {
+    pa_sample_min = 255;
+    pa_sample_max = 0;
+    for (i = 0; i < pa_data_buffer_size; i += 1) {
+        samplep = pa_data_buffer + i;
+        if (pa_ss.format == PA_SAMPLE_U8) {
             if (*samplep < 128) {
                 *samplep = 128 - *samplep;
             } else {
@@ -322,12 +347,12 @@ void regulator_read_buffer() {
         }
         sample = *samplep;
         sample_sum += sample;
-        if (sample < sample_min) {
-            sample_min = sample;
+        if (sample < pa_sample_min) {
+            pa_sample_min = sample;
         }
-        if (sample > sample_max) {
-            sample_max = sample;
+        if (sample > pa_sample_max) {
+            pa_sample_max = sample;
         }
     }
-    sample_avg = (sample_sum + 128) / data_buffer_size;
+    pa_sample_avg = (sample_sum + 128) / pa_data_buffer_size;
 }
