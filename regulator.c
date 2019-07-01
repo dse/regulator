@@ -35,7 +35,7 @@ int main(int argc, char * const argv[]) {
 }
 
 static char *audio_filename = NULL;
-static int ticks_per_hour = 3600; /* how to guess? */
+static size_t ticks_per_hour = 3600; /* how to guess? */
 static size_t samples_per_tick = 44100;
 static size_t sample_buffer_frames;  /* e.g., 44100 */
 static size_t sample_buffer_samples; /* e.g., 88200 if stereo */
@@ -63,33 +63,38 @@ static pa_buffer_attr pa_ba = { .maxlength = 44100,
 
 /* after options are set */
 void regulator_run() {
+    size_t samples;
+
     if (audio_filename == NULL) {
         regulator_pulseaudio_open();
     } else {
         regulator_sndfile_open();
     }
-    size_t samples;
-    size_t i;
-    while (1) {
-        if (audio_filename == NULL) {
-            samples = regulator_pulseaudio_read();
-        } else {
-            samples = regulator_sndfile_read();
-        }
-        if (samples < samples_per_tick) {
-            break;
-        }
-        for (i = 0; i < samples; i += 1) {
-            sample_sort_buffer[i].sample = sample_buffer[i];
-            sample_sort_buffer[i].index  = i;
-        }
-        qsort(sample_sort_buffer, samples, sizeof(regulator_sample_t),
-              (int (*)(const void *, const void *))sample_sort);
-        for (i = 0; i < 10; i += 1) {
-            putchar(i == 0 ? '-' : ' ');
-            printf(" %6d: %6d\n", (int)(sample_sort_buffer[i].index), (int)(sample_sort_buffer[i].sample));
+
+    size_t tick_count;
+
+    for (tick_count = 0; tick_count < 20; tick_count += 1) {
+        if ((samples = regulator_read()) < samples_per_tick) {
+            fprintf(stderr, "%s: not enough data\n", progname);
+            exit(1);
         }
     }
+
+    for (; tick_count < 40; tick_count += 1) {
+        if ((samples = regulator_read()) < samples_per_tick) {
+            fprintf(stderr, "%s: not enough data\n", progname);
+            exit(1);
+        }
+    }
+
+    /* maximum of one hour */
+    for (; tick_count < ticks_per_hour; tick_count += 1) {
+        if ((samples = regulator_read()) < samples_per_tick) {
+            break;
+        }
+    }
+
+    /* best fit */
 }
 
 int sample_sort(const regulator_sample_t *a,
@@ -127,7 +132,7 @@ void regulator_sndfile_open() {
 
     if ((3600 * sfinfo.samplerate) % ticks_per_hour) {
         fprintf(stderr, "%s: can't process --ticks-per-hour=%d with this file, sample rate is %d/sec\n",
-                progname, ticks_per_hour, sfinfo.samplerate);
+                progname, (int)ticks_per_hour, sfinfo.samplerate);
         exit(1);
     }
     samples_per_tick = 3600 * sfinfo.samplerate / ticks_per_hour;
@@ -152,10 +157,66 @@ void regulator_sndfile_open() {
     }
 }
 
+size_t regulator_read() {
+    size_t samples;
+    if (audio_filename == NULL) {
+        samples = regulator_pulseaudio_read();
+    } else {
+        samples = regulator_sndfile_read();
+    }
+    if (samples < samples_per_tick) {
+        return samples;
+    }
+    regulator_analyze_tick();
+    return samples;
+}
+
+void regulator_analyze_tick() {
+    size_t i;
+    size_t samples_near_start = 0;
+    size_t samples_near_end   = 0;
+    size_t peak_sample_indexes[20];
+    size_t index;
+
+    /* find the peak */
+
+    for (i = 0; i < samples_per_tick; i += 1) {
+        sample_sort_buffer[i].sample = sample_buffer[i];
+        sample_sort_buffer[i].index = i;
+    }
+    qsort(sample_sort_buffer, samples_per_tick, sizeof(regulator_sample_t),
+          (int (*)(const void *, const void *))sample_sort);
+
+    for (i = 0; i < 20; i += 1) {
+        index = sample_sort_buffer[i].index;
+        peak_sample_indexes[i] = index;
+        if (index < samples_per_tick / 10) {
+            samples_near_start += 1;
+        }
+        if (index >= samples_per_tick - samples_per_tick / 10) {
+            samples_near_end += 1;
+        }
+    }
+
+    qsort(peak_sample_indexes, 20, sizeof(size_t),
+          (int (*)(const void *, const void *))size_t_sort);
+
+}
+
+int size_t_sort(const size_t *a, const size_t *b) {
+    if (*a < *b) {
+        return -1;
+    }
+    if (*a > *b) {
+        return 1;
+    }
+    return 0;
+}
+
 size_t regulator_sndfile_read() {
     sf_count_t sf_frames;
-    int i;
-    int sample;
+    sf_count_t i;
+    int sample;                 /* int, as read from sf_readf_int */
     if ((sf_frames = sf_readf_int(sf, sf_sample_buffer, sf_num_frames)) <= 0) {
         return 0;
     }
@@ -186,7 +247,7 @@ void regulator_pulseaudio_open() {
 
     if ((3600 * pa_ss.rate) % ticks_per_hour) {
         fprintf(stderr, "%s: can't process --ticks-per-hour=%d, sample rate is %d/sec\n",
-                progname, ticks_per_hour, sfinfo.samplerate);
+                progname, (int)ticks_per_hour, sfinfo.samplerate);
         exit(1);
     }
     samples_per_tick = 3600 * pa_ss.rate / ticks_per_hour;
