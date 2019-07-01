@@ -19,7 +19,6 @@
 /* PulseAudio */
 #include <pulse/simple.h>
 #include <pulse/error.h>
-#define PA_SAMPLE_SPEC_BUFSIZE 1024
 
 /* sndfile */
 #include <sndfile.h>
@@ -29,7 +28,13 @@
 static char *progname;
 
 int main(int argc, char * const argv[]) {
+    char *p;
     progname = argv[0];
+    if ((p = strrchr(progname, '/')) && *(p + 1)) {
+        progname = p + 1;
+    } else if ((p = strrchr(progname, '\\')) && *(p + 1)) {
+        progname = p + 1;
+    }
     regulator_options(&argc, &argv);
     regulator_run();
 }
@@ -40,8 +45,12 @@ static size_t samples_per_tick = 44100;
 static size_t sample_buffer_frames;  /* e.g., 44100 */
 static size_t sample_buffer_samples; /* e.g., 88200 if stereo */
 static size_t sample_buffer_bytes;   /* e.g., 176400 if 16-bit */
-static int16_t *sample_buffer = NULL;
+static size_t bytes_per_frame;      /* e.g., 4 for 16-bit stereo */
 static regulator_sample_t *sample_sort_buffer = NULL;
+
+static int this_tick_is_good = 0;
+static size_t this_tick_peak = SIZE_T_MAX;
+static size_t this_tick_shift_by_half = 0;
 
 static pa_simple *pa_s = NULL;
 static pa_sample_spec pa_ss = { .format   = PA_SAMPLE_S16LE,
@@ -61,9 +70,26 @@ static pa_buffer_attr pa_ba = { .maxlength = 44100,
                                 .tlength   = 0,
                                 .fragsize  = 44100 };
 
+
 /* after options are set */
 void regulator_run() {
     size_t samples;
+    size_t tick_count = 0;
+    size_t tick_index;
+    size_t ticks_in_sample_data_block = (TICKS_PER_GROUP * 2 + 1);
+    size_t samples_in_sample_data_block = ticks_in_sample_data_block * samples_per_tick;
+    int16_t *sample_data_block = (int16_t *)malloc(sizeof(int16_t) * samples_in_sample_data_block);
+
+    int16_t *append_pointer = sample_data_block;
+    size_t append_index = 0;
+    int16_t *analyze_pointer = sample_data_block;
+    size_t analyze_index = 0;
+
+    int tried_shifting_by_half = 0;
+    size_t tick_shift_by_half_count = 0;
+    size_t good_tick_count = 0;
+    tick_peak_t *tick_peak_data = (tick_peak_t *)malloc(sizeof(tick_peak_t) * ticks_per_hour);
+    size_t tick_peak_index = 0;
 
     if (audio_filename == NULL) {
         regulator_pulseaudio_open();
@@ -71,30 +97,165 @@ void regulator_run() {
         regulator_sndfile_open();
     }
 
-    size_t tick_count;
-
-    for (tick_count = 0; tick_count < 20; tick_count += 1) {
-        if ((samples = regulator_read()) < samples_per_tick) {
+    for (; tick_count < TICKS_PER_GROUP; tick_count += 1) {
+        if ((samples = regulator_read(append_pointer, samples_per_tick)) < samples_per_tick) {
             fprintf(stderr, "%s: not enough data\n", progname);
             exit(1);
         }
+        append_pointer += samples_per_tick;
+        append_index   += samples_per_tick;
     }
 
-    for (; tick_count < 40; tick_count += 1) {
-        if ((samples = regulator_read()) < samples_per_tick) {
-            fprintf(stderr, "%s: not enough data\n", progname);
-            exit(1);
+ reanalyze:
+    for (tick_index = 0; tick_index < tick_count; tick_index += 1) {
+        regulator_analyze_tick(analyze_pointer);
+        analyze_pointer += samples_per_tick;
+        analyze_index   += samples_per_tick;
+        if (this_tick_shift_by_half) {
+            tick_shift_by_half_count += 1;
+        }
+        if (this_tick_is_good) {
+            tick_peak_data[tick_peak_index].index = tick_index;
+            tick_peak_data[tick_peak_index].peak  = this_tick_peak;
+            tick_peak_index += 1;
+            good_tick_count += 1;
         }
     }
 
-    /* maximum of one hour */
+    if (tick_shift_by_half_count >= (TICKS_PER_GROUP * 3 / 4)) {
+        if (tried_shifting_by_half) {
+            fprintf(stderr, "%s: UNEXPECTED ERROR 1\n", progname);
+            exit(1);
+        }
+        tried_shifting_by_half = 1;
+        if ((samples = regulator_read(append_pointer, samples_per_tick / 2)) < (samples_per_tick / 2)) {
+            fprintf(stderr, "%s: not enough data\n", progname);
+            exit(1);
+        }
+        append_pointer += samples_per_tick / 2;
+        append_index   += samples_per_tick / 2;
+        analyze_pointer = sample_data_block + samples_per_tick / 2;
+        analyze_index   =                     samples_per_tick / 2;
+        tick_count = 0;
+        tick_shift_by_half_count = 0;
+        good_tick_count = 0;
+        tick_peak_index = 0;
+        goto reanalyze;
+    }
+
+    /* max. 1 hour of data, I guess */
     for (; tick_count < ticks_per_hour; tick_count += 1) {
-        if ((samples = regulator_read()) < samples_per_tick) {
-            break;
+
+        size_t samples_needed = samples_per_tick;
+        size_t extra_samples = 0;
+        int too_fast = 0;
+        int too_slow = 0;
+
+        if (this_tick_is_good) {
+            if (this_tick_peak < samples_per_tick / 4) {
+                too_fast = 1;
+                samples_needed += (extra_samples = samples_per_tick * 3 / 4);
+            } else if (this_tick_peak >= samples_per_tick * 3 / 4) {
+                too_slow = 1;
+                samples_needed += (extra_samples = samples_per_tick / 4);
+            }
+        }
+
+        if (append_index + samples_needed >= samples_in_sample_data_block) {
+            memmove(/* dest */ sample_data_block,
+                    /* src  */ sample_data_block + (append_index - samples_per_tick * TICKS_PER_GROUP),
+                    /* n    */ sizeof(int16_t) * samples_per_tick * TICKS_PER_GROUP);
+            append_pointer = sample_data_block + samples_per_tick * TICKS_PER_GROUP;
+            append_index   =                     samples_per_tick * TICKS_PER_GROUP;
+            analyze_pointer = append_pointer;
+            analyze_index   = append_index;
+        }
+
+        if (too_fast) {
+            /*             v-- append */
+            /* [ |         ] */
+            /*             ^-- analyze */
+            if ((samples = regulator_read(append_pointer, extra_samples)) < extra_samples) {
+                /* no more data */
+                break;
+            }
+            append_pointer += extra_samples;
+            append_index   += extra_samples;
+            /* [ |         ]        v-- append */
+            /*             [ |      ] */
+            /*             ^-- analyze */
+            analyze_pointer = analyze_pointer + extra_samples - samples_per_tick;
+            analyze_index   = analyze_index   + extra_samples - samples_per_tick;
+            /* [ |         ]        v-- append */
+            /*          [    |      ] */
+            /*          ^-- analyze */
+            for (tick_index = 0; tick_index < tick_count; tick_index += 1) {
+                tick_peak_data[tick_peak_index].peak += samples_per_tick - extra_samples;
+            }
+            /*                      v-- append */
+            /*   |      ] */
+            /*          [    |      ] */
+            /*          ^-- analyze */
+            /* don't need to read again but need to analyze */
+        } else if (too_slow) {
+            /*             v-- append */
+            /* [         | ] */
+            /*             ^-- analyze */
+            if ((samples = regulator_read(append_pointer, extra_samples)) < extra_samples) {
+                /* no more data */
+                break;
+            }
+            append_pointer += extra_samples;
+            append_index   += extra_samples;
+            /* [         | ]  v-- append */
+            /*             [  ] */
+            /*             ^-- analyze */
+            analyze_pointer += extra_samples;
+            analyze_index   += extra_samples;
+            /* [         | ]  v-- append */
+            /*             [  ] */
+            /*                ^-- analyze */
+            for (tick_index = 0; tick_index < tick_count; tick_index += 1) {
+                tick_peak_data[tick_peak_index].peak -= extra_samples;
+            }
+            /*                v-- append */
+            /*    [      |    ] */
+            /*                ^-- analyze */
+        }
+
+        if (!too_fast) {
+            if ((samples = regulator_read(append_pointer, samples_per_tick)) < samples_per_tick) {
+                /* no more data */
+                break;
+            }
+            append_pointer += samples_per_tick;
+            append_index   += samples_per_tick;
+        }
+
+        regulator_analyze_tick(analyze_pointer);
+        analyze_pointer += samples_per_tick;
+        analyze_index   += samples_per_tick;
+
+        if (this_tick_is_good) {
+            tick_peak_data[tick_peak_index].index = tick_count;
+            tick_peak_data[tick_peak_index].peak  = this_tick_peak;
+            tick_peak_index += 1;
         }
     }
 
-    /* best fit */
+    /* in samples per tick */
+    float drift = compute_kendall_thiel_best_fit(tick_peak_data, tick_peak_index);
+
+    /* in seconds per tick */
+    drift = -drift / 44100;
+
+    /* in seconds per hour */
+    drift = drift * ticks_per_hour;
+
+    /* in seconds per day */
+    drift = drift * 24;
+
+    printf("%f seconds per day\n", (double)drift);
 }
 
 int sample_sort(const regulator_sample_t *a,
@@ -140,12 +301,9 @@ void regulator_sndfile_open() {
     sample_buffer_frames  = samples_per_tick;
     sample_buffer_samples = sample_buffer_frames * sfinfo.channels;
     sample_buffer_bytes   = sample_buffer_samples * sizeof(int);
+    bytes_per_frame      = sfinfo.channels * sizeof(int);
 
     if (!(sf_sample_buffer = (int *)malloc(sample_buffer_bytes))) {
-        perror(progname);
-        exit(1);
-    }
-    if (!(sample_buffer = (int16_t *)malloc(sample_buffer_frames * sizeof(int16_t)))) {
         perror(progname);
         exit(1);
     }
@@ -157,50 +315,58 @@ void regulator_sndfile_open() {
     }
 }
 
-size_t regulator_read() {
-    size_t samples;
+size_t regulator_read(int16_t *buffer, size_t samples) {
+    size_t samples_read;
     if (audio_filename == NULL) {
-        samples = regulator_pulseaudio_read();
+        samples_read = regulator_pulseaudio_read(buffer, samples);
     } else {
-        samples = regulator_sndfile_read();
+        samples_read = regulator_sndfile_read(buffer, samples);
     }
-    if (samples < samples_per_tick) {
-        return samples;
-    }
-    regulator_analyze_tick();
-    return samples;
+    return samples_read;
 }
 
-void regulator_analyze_tick() {
+/* mainly to find the peak */
+void regulator_analyze_tick(int16_t *buffer) {
     size_t i;
-    size_t samples_near_start = 0;
-    size_t samples_near_end   = 0;
-    size_t peak_sample_indexes[20];
+    size_t peak_sample_indexes[PEAK_SAMPLES];
     size_t index;
-
-    /* find the peak */
+    size_t low_indexes = 0;
+    size_t high_indexes = 0;
 
     for (i = 0; i < samples_per_tick; i += 1) {
-        sample_sort_buffer[i].sample = sample_buffer[i];
+        sample_sort_buffer[i].sample = buffer[i];
         sample_sort_buffer[i].index = i;
     }
     qsort(sample_sort_buffer, samples_per_tick, sizeof(regulator_sample_t),
           (int (*)(const void *, const void *))sample_sort);
 
-    for (i = 0; i < 20; i += 1) {
+    for (i = 0; i < PEAK_SAMPLES; i += 1) {
         index = sample_sort_buffer[i].index;
         peak_sample_indexes[i] = index;
-        if (index < samples_per_tick / 10) {
-            samples_near_start += 1;
+        if (index < (samples_per_tick * PEAK_WAY_OFF_THRESHOLD_1 / PEAK_SAMPLES)) {
+            low_indexes += 1;
         }
-        if (index >= samples_per_tick - samples_per_tick / 10) {
-            samples_near_end += 1;
+        if ((samples_per_tick - index) < (samples_per_tick * PEAK_WAY_OFF_THRESHOLD_1 / PEAK_SAMPLES)) {
+            high_indexes += 1;
         }
     }
 
-    qsort(peak_sample_indexes, 20, sizeof(size_t),
-          (int (*)(const void *, const void *))size_t_sort);
+    /* heuristic */
+    this_tick_shift_by_half = ((low_indexes >= (PEAK_WAY_OFF_THRESHOLD_2) &&
+                                high_indexes >= (PEAK_WAY_OFF_THRESHOLD_2)) ||
+                               low_indexes >= (PEAK_WAY_OFF_THRESHOLD_2 * 2) ||
+                               high_indexes >= (PEAK_WAY_OFF_THRESHOLD_2 * 2));
 
+    qsort(peak_sample_indexes, PEAK_SAMPLES, sizeof(size_t),
+          (int (*)(const void *, const void *))size_t_sort);
+    size_t lowest_index  = peak_sample_indexes[PEAK_WAY_OFF_THRESHOLD_2];
+    size_t highest_index = peak_sample_indexes[PEAK_SAMPLES - 1 - PEAK_WAY_OFF_THRESHOLD_2];
+    this_tick_is_good = ((highest_index - lowest_index) < samples_per_tick * PEAK_WAY_OFF_THRESHOLD_1 / PEAK_SAMPLES);
+    if (this_tick_is_good) {
+        this_tick_peak = (highest_index + lowest_index) / 2;
+    } else {
+        this_tick_peak = SIZE_T_MAX;
+    }
 }
 
 int size_t_sort(const size_t *a, const size_t *b) {
@@ -213,11 +379,11 @@ int size_t_sort(const size_t *a, const size_t *b) {
     return 0;
 }
 
-size_t regulator_sndfile_read() {
+size_t regulator_sndfile_read(int16_t *buffer, size_t samples) {
     sf_count_t sf_frames;
     sf_count_t i;
     int sample;                 /* int, as read from sf_readf_int */
-    if ((sf_frames = sf_readf_int(sf, sf_sample_buffer, sf_num_frames)) <= 0) {
+    if ((sf_frames = sf_readf_int(sf, sf_sample_buffer, samples)) <= 0) {
         return 0;
     }
     for (i = 0; i < sf_frames; i += 1) {
@@ -228,7 +394,7 @@ size_t regulator_sndfile_read() {
         } else if (sample < 0) {
             sample = -sample;
         }
-        sample_buffer[i] = sample;
+        buffer[i] = sample;
     }
     return sf_frames;
 }
@@ -255,14 +421,12 @@ void regulator_pulseaudio_open() {
     sample_buffer_frames  = samples_per_tick;
     sample_buffer_samples = sample_buffer_frames * pa_ss.channels;
     sample_buffer_bytes   = pa_bytes_per_second(&pa_ss) * 3600 / ticks_per_hour;
+    bytes_per_frame      = pa_ss.channels * sizeof(int16_t);
 
     pa_ba.maxlength = sample_buffer_bytes;
     pa_ba.fragsize  = sample_buffer_bytes;
 
-    printf("%s: sample_buffer_bytes = %ld bytes\n", progname, (long)sample_buffer_bytes);
-
     pa_sample_spec_snprint(pa_ss_string, PA_SAMPLE_SPEC_BUFSIZE, &pa_ss);
-    printf("%s: %s\n", progname, pa_ss_string);
 
     pa_s = pa_simple_new(NULL,             /* server name */
                          progname,         /* name */
@@ -282,13 +446,7 @@ void regulator_pulseaudio_open() {
         fprintf(stderr, "%s: pa_simple_get_latency() failed: %s\n", progname, pa_strerror(pa_error));
         exit(1);
     }
-    printf("%s: latency is %f seconds\n", progname, 0.000001 * pa_latency);
 
-    sample_buffer = (int16_t *)malloc(sample_buffer_bytes);
-    if (!sample_buffer) {
-        perror(progname);
-        exit(1);
-    }
     if (!(sample_sort_buffer =
           (regulator_sample_t *)
           malloc(sample_buffer_frames * sizeof(regulator_sample_t)))) {
@@ -297,11 +455,11 @@ void regulator_pulseaudio_open() {
     }
 }
 
-size_t regulator_pulseaudio_read() {
+size_t regulator_pulseaudio_read(int16_t *buffer, size_t samples) {
     size_t i;
     int16_t *samplep;
 
-    if (pa_simple_read(pa_s, sample_buffer, sample_buffer_bytes, &pa_error) < 0) {
+    if (pa_simple_read(pa_s, buffer, samples * bytes_per_frame, &pa_error) < 0) {
         fprintf(stderr, "%s: pa_simple_read failed: %s\n", progname, pa_strerror(pa_error));
         exit(1);
     }
@@ -310,8 +468,8 @@ size_t regulator_pulseaudio_read() {
     if (!IS_LITTLE_ENDIAN) {
         char *a;
         char *b;
-        for (i = 0; i < sample_buffer_samples; i += 1) {
-            a = (char *)(sample_buffer + i);
+        for (i = 0; i < samples * pa_ss.channels; i += 1) {
+            a = (char *)(buffer + i);
             b = a + 1;
 
             /* swap */
@@ -321,8 +479,8 @@ size_t regulator_pulseaudio_read() {
         }
     }
 
-    for (i = 0; i < sample_buffer_samples; i += 1) {
-        samplep = sample_buffer + i;
+    for (i = 0; i < samples * pa_ss.channels; i += 1) {
+        samplep = buffer + i;
         if (*samplep == INT16_MIN) { /* -32768 => 32767 */
             *samplep = INT16_MAX;
         } else if (*samplep < 0) {
@@ -330,7 +488,7 @@ size_t regulator_pulseaudio_read() {
         }
     }
 
-    return sample_buffer_samples;
+    return samples;
 }
 
 void regulator_show_vu() {
@@ -425,8 +583,7 @@ void regulator_options(int *argcp, char * const **argvp) {
                     exit(1);
                 }
             } else {
-                fprintf(stderr, "%s: option not implemented: --%s\n",
-                        progname, longoptname);
+                fprintf(stderr, "%s: option not implemented: --%s\n", progname, longoptname);
                 exit(1);
             }
             break;
@@ -444,17 +601,48 @@ void regulator_options(int *argcp, char * const **argvp) {
             regulator_usage();
             exit(0);
         case '?':
-            printf("%s: unknown or ambiguous option: %s\n", progname, "?"); /* FIXME */
+            fprintf(stderr, "%s: unknown or ambiguous option: %s\n", progname, "?"); /* FIXME */
             exit(1);
         case ':':
-            printf("%s: option missing argument: %s\n", progname, "?"); /* FIXME */
+            fprintf(stderr, "%s: option missing argument: %s\n", progname, "?"); /* FIXME */
             exit(1);
         default:
-            printf("%s: ?? getopt returned character code 0x%02x ??\n", progname, c);
+            fprintf(stderr, "%s: ?? getopt returned character code 0x%02x ??\n", progname, c);
             exit(1);
         }
     }
     *argcp -= optind;
     *argvp += optind;
     optind = 0;
+}
+
+float compute_kendall_thiel_best_fit(tick_peak_t *data, size_t ticks) {
+    if (ticks < 2) {
+        return 0;
+    }
+    size_t nslopes = ((ticks * (ticks - 1)) / 2);
+    float *slopes = (float *)malloc(sizeof(float) * nslopes);
+    size_t i;
+    size_t j;
+    size_t si = 0;
+    for (i = 0; i < ticks - 1; i += 1) {
+        for (j = i + 1; j < ticks; j += 1) {
+            slopes[si] = (0.0f + data[j].peak - data[i].peak) / (0.0f + data[j].index - data[i].index);
+            si += 1;
+        }
+    }
+    qsort(slopes, nslopes, sizeof(float),
+          (int (*)(const void *, const void *))float_sort);
+    float result;
+    if (nslopes % 2 == 0) {
+        result = (slopes[nslopes / 2] + slopes[nslopes / 2 - 1]) / 2;
+    } else {
+        result = slopes[nslopes / 2];
+    }
+    free(slopes);
+    return result;
+}
+
+int float_sort(const float *a, const float *b) {
+    return (*a < *b) ? -1 : (*a > *b) ? 1 : 0;
 }
