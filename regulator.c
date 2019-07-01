@@ -32,28 +32,16 @@ int main(int argc, char * const argv[]) {
     progname = argv[0];
     regulator_options(&argc, &argv);
     regulator_run();
-    /* if (!argc || !strcmp(argv[0], "run")) { */
-    /*     printf("%s: running regulator_run()\n", progname); */
-    /*     regulator_run(); */
-    /* } else if (!strcmp(argv[0], "test")) { */
-    /*     printf("%s: running regulator_test()\n", progname); */
-    /*     regulator_test(); */
-    /* } else if (!strcmp(argv[0], "guess")) { */
-    /*     printf("%s: running regulator_guess()\n", progname); */
-    /*     regulator_guess(); */
-    /* } else { */
-    /*     fprintf(stderr, "%s: unknown command: %s\n", progname, argv[0]); */
-    /*     exit(1); */
-    /* } */
 }
 
-static char *audio_filename   = NULL;
-static int ticks_per_hour     = 3600; /* how to guess? */
-static int samples_per_tick   = 44100;
+static char *audio_filename = NULL;
+static int ticks_per_hour = 3600; /* how to guess? */
+static size_t samples_per_tick = 44100;
 static size_t sample_buffer_frames;  /* e.g., 44100 */
 static size_t sample_buffer_samples; /* e.g., 88200 if stereo */
 static size_t sample_buffer_bytes;   /* e.g., 176400 if 16-bit */
 static int16_t *sample_buffer = NULL;
+static regulator_sample_t *sample_sort_buffer = NULL;
 
 static pa_simple *pa_s = NULL;
 static pa_sample_spec pa_ss = { .format   = PA_SAMPLE_S16LE,
@@ -76,10 +64,43 @@ static pa_buffer_attr pa_ba = { .maxlength = 44100,
 /* after options are set */
 void regulator_run() {
     if (audio_filename == NULL) {
-        regulator_pulseaudio_run();
+        regulator_pulseaudio_open();
     } else {
-        regulator_sndfile_run();
+        regulator_sndfile_open();
     }
+    size_t samples;
+    size_t i;
+    while (1) {
+        if (audio_filename == NULL) {
+            samples = regulator_pulseaudio_read();
+        } else {
+            samples = regulator_sndfile_read();
+        }
+        if (samples < samples_per_tick) {
+            break;
+        }
+        for (i = 0; i < samples; i += 1) {
+            sample_sort_buffer[i].sample = sample_buffer[i];
+            sample_sort_buffer[i].index  = i;
+        }
+        qsort(sample_sort_buffer, samples, sizeof(regulator_sample_t),
+              (int (*)(const void *, const void *))sample_sort);
+        for (i = 0; i < 10; i += 1) {
+            putchar(i == 0 ? '-' : ' ');
+            printf(" %6d: %6d\n", (int)(sample_sort_buffer[i].index), (int)(sample_sort_buffer[i].sample));
+        }
+    }
+}
+
+int sample_sort(const regulator_sample_t *a,
+                const regulator_sample_t *b) {
+    if (a->sample < b->sample) {
+        return 1;
+    }
+    if (a->sample > b->sample) {
+        return -1;
+    }
+    return 0;
 }
 
 SNDFILE* sf;
@@ -97,7 +118,7 @@ sf_count_t sf_frames;
 
 #define CHANNEL_NUMBER 0
 
-void regulator_sndfile_run() {
+void regulator_sndfile_open() {
     sf = sf_open(audio_filename, SFM_READ, &sfinfo);
     if (!sf) {
         fprintf(stderr, "%s: unable to open %s: %s\n", progname, audio_filename, sf_strerror(NULL));
@@ -123,25 +144,36 @@ void regulator_sndfile_run() {
         perror(progname);
         exit(1);
     }
-    sf_count_t sf_frames;
-    int i;
-    int sample;
-    while ((sf_frames = sf_readf_int(sf, sf_sample_buffer, sf_num_frames)) > 0) {
-        for (i = 0; i < sf_frames; i += 1) {
-            /* quantize an int to an int16_t */
-            sample = sf_sample_buffer[i * sfinfo.channels + CHANNEL_NUMBER] / (1 << ((sizeof(int) - sizeof(int16_t)) * 8));
-            if (sample == INT16_MIN) { /* -32768 => 32767 */
-                sample = INT16_MAX;
-            } else if (sample < 0) {
-                sample = -sample;
-            }
-            sample_buffer[i] = sample;
-        }
+    if (!(sample_sort_buffer =
+          (regulator_sample_t *)
+          malloc(sample_buffer_frames * sizeof(regulator_sample_t)))) {
+        perror(progname);
+        exit(1);
     }
 }
 
+size_t regulator_sndfile_read() {
+    sf_count_t sf_frames;
+    int i;
+    int sample;
+    if ((sf_frames = sf_readf_int(sf, sf_sample_buffer, sf_num_frames)) <= 0) {
+        return 0;
+    }
+    for (i = 0; i < sf_frames; i += 1) {
+        /* quantize an int to an int16_t */
+        sample = sf_sample_buffer[i * sfinfo.channels + CHANNEL_NUMBER] / (1 << ((sizeof(int) - sizeof(int16_t)) * 8));
+        if (sample == INT16_MIN) { /* -32768 => 32767 */
+            sample = INT16_MAX;
+        } else if (sample < 0) {
+            sample = -sample;
+        }
+        sample_buffer[i] = sample;
+    }
+    return sf_frames;
+}
+
 /* after options are set */
-void regulator_pulseaudio_run() {
+void regulator_pulseaudio_open() {
     /* sanity check */
     if (!pa_sample_spec_valid(&pa_ss)) {
         fprintf(stderr, "%s: invalid sample specification\n", progname);
@@ -196,40 +228,48 @@ void regulator_pulseaudio_run() {
         perror(progname);
         exit(1);
     }
+    if (!(sample_sort_buffer =
+          (regulator_sample_t *)
+          malloc(sample_buffer_frames * sizeof(regulator_sample_t)))) {
+        perror(progname);
+        exit(1);
+    }
+}
 
+size_t regulator_pulseaudio_read() {
     size_t i;
     int16_t *samplep;
 
-    while (1) {
-        if (pa_simple_read(pa_s, sample_buffer, sample_buffer_bytes, &pa_error) < 0) {
-            fprintf(stderr, "%s: pa_simple_read failed: %s\n", progname, pa_strerror(pa_error));
-            exit(1);
-        }
+    if (pa_simple_read(pa_s, sample_buffer, sample_buffer_bytes, &pa_error) < 0) {
+        fprintf(stderr, "%s: pa_simple_read failed: %s\n", progname, pa_strerror(pa_error));
+        exit(1);
+    }
 
-        /* if on a big-endian system, convert from little endian by swapping bytes, lol */
-        if (!IS_LITTLE_ENDIAN) {
-            char *a;
-            char *b;
-            for (i = 0; i < sample_buffer_samples; i += 1) {
-                a = (char *)(sample_buffer + i);
-                b = a + 1;
-
-                /* swap */
-                *a = *a ^ *b;
-                *b = *a ^ *b;
-                *a = *a ^ *b;
-            }
-        }
-
+    /* if on a big-endian system, convert from little endian by swapping bytes, lol */
+    if (!IS_LITTLE_ENDIAN) {
+        char *a;
+        char *b;
         for (i = 0; i < sample_buffer_samples; i += 1) {
-            samplep = sample_buffer + i;
-            if (*samplep == INT16_MIN) { /* -32768 => 32767 */
-                *samplep = INT16_MAX;
-            } else if (*samplep < 0) {
-                *samplep = -*samplep;
-            }
+            a = (char *)(sample_buffer + i);
+            b = a + 1;
+
+            /* swap */
+            *a = *a ^ *b;
+            *b = *a ^ *b;
+            *a = *a ^ *b;
         }
     }
+
+    for (i = 0; i < sample_buffer_samples; i += 1) {
+        samplep = sample_buffer + i;
+        if (*samplep == INT16_MIN) { /* -32768 => 32767 */
+            *samplep = INT16_MAX;
+        } else if (*samplep < 0) {
+            *samplep = -*samplep;
+        }
+    }
+
+    return sample_buffer_samples;
 }
 
 void regulator_show_vu() {
