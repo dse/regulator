@@ -29,11 +29,6 @@
 static char *progname;
 
 int main(int argc, char * const argv[]) {
-    int16_t _endian_test = 0x0102;
-    printf("%d\n", *((char *)&_endian_test));
-
-
-
     progname = argv[0];
     regulator_options(&argc, &argv);
     if (!argc || !strcmp(argv[0], "run")) {
