@@ -18,19 +18,10 @@
 /* PulseAudio */
 #include <pulse/simple.h>
 #include <pulse/error.h>
-#define BUFSIZE 1024
+#define PA_SAMPLE_SPEC_BUFSIZE 1024
 
-/* libavcodec */
-#include <libavutil/frame.h>
-#include <libavutil/mem.h>
-#include <libavcodec/avcodec.h>
-#define AUDIO_INBUF_SIZE 20480
-#define AUDIO_REFILL_THRESH 4096
-
-void regulator_preinit();
 void regulator_init();
 void regulator_pulseaudio_init();
-void regulator_avcodec_init();
 void regulator_usage();
 void regulator_run();
 void regulator_test();
@@ -42,7 +33,6 @@ void regulator_show_vu();
 static char *progname;
 
 int main(int argc, char * const argv[]) {
-    regulator_preinit();
     progname = argv[0];
     regulator_options(&argc, &argv);
     if (!argc || !strcmp(argv[0], "run")) {
@@ -65,7 +55,7 @@ static pa_sample_spec ss = { .format   = PA_SAMPLE_U8,
                              .rate     = 44100,
                              .channels = 1 };
 static int error = 0;
-static char ss_string[BUFSIZE];
+static char ss_string[PA_SAMPLE_SPEC_BUFSIZE];
 static size_t data_buffer_size;
 static uint8_t *data_buffer = NULL;
 static uint8_t sample_max;
@@ -85,33 +75,12 @@ static int data_buffer_fraction_second = 20;
 static int data_buffer_reads           = 20;
 static char *audio_filename            = NULL;
 
-/* mainly for defaults */
-void regulator_preinit() {
-    /* stub function */
-}
-
 /* after options are set */
 void regulator_init() {
     if (audio_filename == NULL) {
         regulator_pulseaudio_init();
     } else {
-        regulator_avcodec_init();
-    }
-}
-
-static AVPacket *pkt;
-static FILE *f;
-
-void regulator_avcodec_init() {
-    pkt = av_packet_alloc();
-    if (!pkt) {
-        fprintf(stderr, "%s: av_packet_alloc() failed\n", progname);
-        exit(1);
-    }
-    f = fopen(audio_filename, "rb");
-    if (!f) {
-        fprintf(stderr, "%s: cannot open %s: %s", progname, audio_filename, strerror(errno));
-        exit(1);
+        exit(0);
     }
 }
 
@@ -135,7 +104,7 @@ void regulator_pulseaudio_init() {
 
     printf("%s: data_buffer_size = %ld\n", progname, (long)data_buffer_size);
 
-    pa_sample_spec_snprint(ss_string, BUFSIZE, &ss);
+    pa_sample_spec_snprint(ss_string, PA_SAMPLE_SPEC_BUFSIZE, &ss);
     printf("%s: %s\n", progname, ss_string);
 
     s = pa_simple_new(NULL,             /* server name */
@@ -253,7 +222,7 @@ void regulator_usage() {
 void regulator_options(int *argcp, char * const **argvp) {
     int c;
 
-    char optstring[] = "hf";
+    char optstring[] = "hf:";
     const char *longoptname;
     static struct option long_options[] =
         {
@@ -303,7 +272,7 @@ void regulator_options(int *argcp, char * const **argvp) {
             }
             break;
         case 'f':
-            if (audio_filename) {
+            if (audio_filename != NULL) {
                 free(audio_filename);
             }
             audio_filename = strdup(optarg);
