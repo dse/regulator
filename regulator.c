@@ -39,6 +39,7 @@ int main(int argc, char * const argv[]) {
     regulator_run();
 }
 
+int debug = 0;
 static char *audio_filename = NULL;
 static size_t ticks_per_hour = 3600; /* how to guess? */
 static size_t samples_per_tick = 44100;
@@ -69,7 +70,6 @@ static pa_buffer_attr pa_ba = { .maxlength = 44100,
                                 .prebuf    = 0,
                                 .tlength   = 0,
                                 .fragsize  = 44100 };
-
 
 /* after options are set */
 void regulator_run() {
@@ -240,6 +240,7 @@ void regulator_run() {
             tick_peak_data[tick_peak_index].index = tick_count;
             tick_peak_data[tick_peak_index].peak  = this_tick_peak;
             tick_peak_index += 1;
+            good_tick_count += 1;
         }
     }
 
@@ -256,6 +257,9 @@ void regulator_run() {
     drift = drift * 24;
 
     printf("%f seconds per day\n", (double)drift);
+    if (debug >= 1) {
+        printf("%d good data points out of %d wanted\n", (int)good_tick_count, (int)tick_count);
+    }
 }
 
 int sample_sort(const regulator_sample_t *a,
@@ -531,7 +535,7 @@ void regulator_usage() {
 void regulator_options(int *argcp, char * const **argvp) {
     int c;
 
-    char optstring[] = "hf:";
+    char optstring[] = "hf:D";
     const char *longoptname;
     static struct option long_options[] =
         {
@@ -546,6 +550,7 @@ void regulator_options(int *argcp, char * const **argvp) {
          { "pcm",            no_argument,       NULL, 0   },
          { "file",           required_argument, NULL, 'f' },
          { "ticks-per-hour", required_argument, NULL, 0   },
+         { "debug",          no_argument,       NULL, 'D' },
          { NULL,             0,                 NULL, 0   }
         };
 
@@ -582,10 +587,15 @@ void regulator_options(int *argcp, char * const **argvp) {
                     fprintf(stderr, "%s: invalid --ticks-per-hour value: %s\n", progname, optarg);
                     exit(1);
                 }
+            } else if (!strcmp(longoptname, "debug")) {
+                debug += 1;
             } else {
                 fprintf(stderr, "%s: option not implemented: --%s\n", progname, longoptname);
                 exit(1);
             }
+            break;
+        case 'D':
+            debug += 1;
             break;
         case 'f':
             if (audio_filename != NULL) {
