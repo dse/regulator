@@ -26,6 +26,7 @@ int size_t_sort(const size_t *a, const size_t *b);
 #include <stdint.h>
 
 /* You are not expected to understand this. */
+/* You are not guaranteed to be able to use this in an #if. */
 int16_t _endian_test = 0x0001;
 #define IS_LITTLE_ENDIAN (*((char *)&_endian_test))
 
