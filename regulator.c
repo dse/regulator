@@ -31,30 +31,29 @@ static char *progname;
 int main(int argc, char * const argv[]) {
     progname = argv[0];
     regulator_options(&argc, &argv);
-    if (!argc || !strcmp(argv[0], "run")) {
-        printf("%s: running regulator_run()\n", progname);
-        regulator_run();
-    } else if (!strcmp(argv[0], "test")) {
-        printf("%s: running regulator_test()\n", progname);
-        regulator_test();
-    } else if (!strcmp(argv[0], "guess")) {
-        printf("%s: running regulator_guess()\n", progname);
-        regulator_guess();
-    } else {
-        fprintf(stderr, "%s: unknown command: %s\n", progname, argv[0]);
-        exit(1);
-    }
+    regulator_run();
+    /* if (!argc || !strcmp(argv[0], "run")) { */
+    /*     printf("%s: running regulator_run()\n", progname); */
+    /*     regulator_run(); */
+    /* } else if (!strcmp(argv[0], "test")) { */
+    /*     printf("%s: running regulator_test()\n", progname); */
+    /*     regulator_test(); */
+    /* } else if (!strcmp(argv[0], "guess")) { */
+    /*     printf("%s: running regulator_guess()\n", progname); */
+    /*     regulator_guess(); */
+    /* } else { */
+    /*     fprintf(stderr, "%s: unknown command: %s\n", progname, argv[0]); */
+    /*     exit(1); */
+    /* } */
 }
 
-static char *audio_filename = NULL;
-
-static int sample_buffer_seconds         = 5;
-static int sample_buffer_fraction_second = 20;
-static int sample_buffer_reads           = 20;
-
-static size_t sample_buffer_frames;  /* 44100 */
-static size_t sample_buffer_samples; /* 88200 if stereo */
-static size_t sample_buffer_bytes;   /* 176400 if 16-bit */
+static char *audio_filename   = NULL;
+static int ticks_per_hour     = 3600; /* how to guess? */
+static int samples_per_tick   = 44100;
+static size_t sample_buffer_frames;  /* e.g., 44100 */
+static size_t sample_buffer_samples; /* e.g., 88200 if stereo */
+static size_t sample_buffer_bytes;   /* e.g., 176400 if 16-bit */
+static int16_t *sample_buffer = NULL;
 
 static pa_simple *pa_s = NULL;
 static pa_sample_spec pa_ss = { .format   = PA_SAMPLE_S16LE,
@@ -63,7 +62,6 @@ static pa_sample_spec pa_ss = { .format   = PA_SAMPLE_S16LE,
 static int pa_error = 0;
 static char pa_ss_string[PA_SAMPLE_SPEC_BUFSIZE];
 
-static int16_t *pa_sample_buffer = NULL;
 static int16_t pa_sample_max;
 static int16_t pa_sample_min;
 static int16_t pa_sample_avg;
@@ -76,12 +74,11 @@ static pa_buffer_attr pa_ba = { .maxlength = 44100,
                                 .fragsize  = 44100 };
 
 /* after options are set */
-void regulator_init() {
+void regulator_run() {
     if (audio_filename == NULL) {
-        regulator_pulseaudio_init();
+        regulator_pulseaudio_run();
     } else {
-        regulator_sndfile_init();
-        exit(0);
+        regulator_sndfile_run();
     }
 }
 
@@ -92,56 +89,59 @@ SF_INFO sfinfo = { .frames     = 0,
                    .format     = 0, /* set to 0 before reading */
                    .sections   = 0,
                    .seekable   = 0 };
-short *sf_sample_buffer;
+int *sf_sample_buffer;
+
 sf_count_t sf_frames;
 #define sf_num_frames sample_buffer_frames
 #define sf_num_items  sample_buffer_samples
 
-void regulator_sndfile_init() {
+#define CHANNEL_NUMBER 0
+
+void regulator_sndfile_run() {
     sf = sf_open(audio_filename, SFM_READ, &sfinfo);
     if (!sf) {
         fprintf(stderr, "%s: unable to open %s: %s\n", progname, audio_filename, sf_strerror(NULL));
         exit(1);
     }
 
-    sample_buffer_frames  = sfinfo.samplerate / sample_buffer_fraction_second;
-    sample_buffer_samples = sample_buffer_frames * sfinfo.channels;
-    sample_buffer_bytes   = sample_buffer_samples * sizeof(short);
+    if ((3600 * sfinfo.samplerate) % ticks_per_hour) {
+        fprintf(stderr, "%s: can't process --ticks-per-hour=%d with this file, sample rate is %d/sec\n",
+                progname, ticks_per_hour, sfinfo.samplerate);
+        exit(1);
+    }
+    samples_per_tick = 3600 * sfinfo.samplerate / ticks_per_hour;
 
-    if (!(sf_sample_buffer = (short *)malloc(sample_buffer_bytes))) {
+    sample_buffer_frames  = samples_per_tick;
+    sample_buffer_samples = sample_buffer_frames * sfinfo.channels;
+    sample_buffer_bytes   = sample_buffer_samples * sizeof(int);
+
+    if (!(sf_sample_buffer = (int *)malloc(sample_buffer_bytes))) {
         perror(progname);
         exit(1);
     }
-    while (1) {
-        sf_count_t sf_frames;
-        int ok = 0;
-        if ((sf_frames = sf_readf_short(sf, sf_sample_buffer, sf_num_frames)) > 0) {
-            ok = 1;
-        }
-        if (!ok) {
-            break;
-        }
-        int i;
-        int j;
+    if (!(sample_buffer = (int16_t *)malloc(sample_buffer_frames * sizeof(int16_t)))) {
+        perror(progname);
+        exit(1);
+    }
+    sf_count_t sf_frames;
+    int i;
+    int sample;
+    while ((sf_frames = sf_readf_int(sf, sf_sample_buffer, sf_num_frames)) > 0) {
         for (i = 0; i < sf_frames; i += 1) {
-            printf("%6d:", i);
-            for (j = 0; j < sfinfo.channels; j += 1) {
-                putchar(' ');
-                putchar('|');
-                if (i < sf_frames) {
-                    short sample = sf_sample_buffer[i * sfinfo.channels + j];
-                    printf(" %10hd", sample);
-                } else {
-                    printf("           ");
-                }
+            /* quantize an int to an int16_t */
+            sample = sf_sample_buffer[i * sfinfo.channels + CHANNEL_NUMBER] / (1 << ((sizeof(int) - sizeof(int16_t)) * 8));
+            if (sample == INT16_MIN) { /* -32768 => 32767 */
+                sample = INT16_MAX;
+            } else if (sample < 0) {
+                sample = -sample;
             }
-            putchar('\n');
+            sample_buffer[i] = sample;
         }
     }
 }
 
 /* after options are set */
-void regulator_pulseaudio_init() {
+void regulator_pulseaudio_run() {
     /* sanity check */
     if (!pa_sample_spec_valid(&pa_ss)) {
         fprintf(stderr, "%s: invalid sample specification\n", progname);
@@ -152,14 +152,19 @@ void regulator_pulseaudio_init() {
         exit(1);
     }
 
-    sample_buffer_frames  = pa_ss.rate / sample_buffer_fraction_second;
+    if ((3600 * pa_ss.rate) % ticks_per_hour) {
+        fprintf(stderr, "%s: can't process --ticks-per-hour=%d, sample rate is %d/sec\n",
+                progname, ticks_per_hour, sfinfo.samplerate);
+        exit(1);
+    }
+    samples_per_tick = 3600 * pa_ss.rate / ticks_per_hour;
+
+    sample_buffer_frames  = samples_per_tick;
     sample_buffer_samples = sample_buffer_frames * pa_ss.channels;
-    sample_buffer_bytes   = pa_bytes_per_second(&pa_ss) / sample_buffer_fraction_second;
+    sample_buffer_bytes   = pa_bytes_per_second(&pa_ss) * 3600 / ticks_per_hour;
 
     pa_ba.maxlength = sample_buffer_bytes;
     pa_ba.fragsize  = sample_buffer_bytes;
-
-    sample_buffer_reads = sample_buffer_seconds * sample_buffer_fraction_second;
 
     printf("%s: sample_buffer_bytes = %ld bytes\n", progname, (long)sample_buffer_bytes);
 
@@ -186,24 +191,14 @@ void regulator_pulseaudio_init() {
     }
     printf("%s: latency is %f seconds\n", progname, 0.000001 * pa_latency);
 
-    pa_sample_buffer = (int16_t *)malloc(sample_buffer_bytes);
-    if (!pa_sample_buffer) {
+    sample_buffer = (int16_t *)malloc(sample_buffer_bytes);
+    if (!sample_buffer) {
         perror(progname);
         exit(1);
     }
-}
 
-void regulator_run() {
-    regulator_init();
-    printf("this is regulator_run().  I'm a stub function.\n");
-}
-
-void regulator_test() {
-    long counter;
-    regulator_init();
-    for (counter = 0; !sample_buffer_reads || (counter < sample_buffer_reads); counter += 1) {
+    while (1) {
         regulator_read_buffer();
-        printf("%8ld: ", counter);
         regulator_show_vu();
     }
 }
@@ -233,10 +228,6 @@ void regulator_show_vu() {
     fflush(stdout);
 }
 
-void regulator_guess() {
-    regulator_init();
-}
-
 void regulator_usage() {
     puts("usage: regulator [<option> ...] [<command>]");
     puts("commands:");
@@ -244,8 +235,9 @@ void regulator_usage() {
     puts("    guess");
     puts("    run");
     puts("options:");
-    puts("    -h, --help                  display this message");
-    puts("    -f, --file=<file>           read data from sound file");
+    puts("    -h, --help                      display this message");
+    puts("    -f, --file=<file>               read data from sound file");
+    puts("        --ticks-per-hour=<ticks>    specify ticks per hour");
 }
 
 void regulator_options(int *argcp, char * const **argvp) {
@@ -255,17 +247,18 @@ void regulator_options(int *argcp, char * const **argvp) {
     const char *longoptname;
     static struct option long_options[] =
         {
-         /* name,    has_arg,           flag, val */
-         { "help",   no_argument,       NULL, 'h' },
-         { "44100",  no_argument,       NULL, 0   },
-         { "48000",  no_argument,       NULL, 0   },
-         { "96000",  no_argument,       NULL, 0   },
-         { "192000", no_argument,       NULL, 0   },
-         { "alaw",   no_argument,       NULL, 0   },
-         { "mulaw",  no_argument,       NULL, 0   },
-         { "pcm",    no_argument,       NULL, 0   },
-         { "file",   required_argument, NULL, 'f' },
-         { NULL,     0,                 NULL, 0   }
+         /* name,            has_arg,           flag, val */
+         { "help",           no_argument,       NULL, 'h' },
+         { "44100",          no_argument,       NULL, 0   },
+         { "48000",          no_argument,       NULL, 0   },
+         { "96000",          no_argument,       NULL, 0   },
+         { "192000",         no_argument,       NULL, 0   },
+         { "alaw",           no_argument,       NULL, 0   },
+         { "mulaw",          no_argument,       NULL, 0   },
+         { "pcm",            no_argument,       NULL, 0   },
+         { "file",           required_argument, NULL, 'f' },
+         { "ticks-per-hour", required_argument, NULL, 0   },
+         { NULL,             0,                 NULL, 0   }
         };
 
     while (1) {
@@ -294,6 +287,13 @@ void regulator_options(int *argcp, char * const **argvp) {
                 pa_ss.format = PA_SAMPLE_ULAW;
             } else if (!strcmp(longoptname, "pcm")) {
                 pa_ss.format = PA_SAMPLE_S16LE;
+            } else if (!strcmp(longoptname, "ticks-per-hour")) {
+                errno = 0;
+                ticks_per_hour = (int)strtol(optarg, (char **)NULL, 10);
+                if (ticks_per_hour < 1) {
+                    fprintf(stderr, "%s: invalid --ticks-per-hour value: %s\n", progname, optarg);
+                    exit(1);
+                }
             } else {
                 fprintf(stderr, "%s: option not implemented: --%s\n",
                         progname, longoptname);
@@ -331,10 +331,8 @@ void regulator_options(int *argcp, char * const **argvp) {
 
 void regulator_read_buffer() {
     size_t i;
-    int64_t sample_sum = 0;
     int16_t *samplep;
-    int16_t sample;
-    if (pa_simple_read(pa_s, pa_sample_buffer, sample_buffer_bytes, &pa_error) < 0) {
+    if (pa_simple_read(pa_s, sample_buffer, sample_buffer_bytes, &pa_error) < 0) {
         fprintf(stderr, "%s: pa_simple_read failed: %s\n", progname, pa_strerror(pa_error));
         exit(1);
     }
@@ -344,7 +342,7 @@ void regulator_read_buffer() {
         char *a;
         char *b;
         for (i = 0; i < sample_buffer_samples; i += 1) {
-            a = (char *)(pa_sample_buffer + i);
+            a = (char *)(sample_buffer + i);
             b = a + 1;
 
             /* swap */
@@ -354,26 +352,12 @@ void regulator_read_buffer() {
         }
     }
 
-    pa_sample_min = 0;
-    pa_sample_max = 0;
     for (i = 0; i < sample_buffer_samples; i += 1) {
-        samplep = pa_sample_buffer + i;
-        if (*samplep < 0) {
+        samplep = sample_buffer + i;
+        if (*samplep == INT16_MIN) { /* -32768 => 32767 */
+            *samplep = INT16_MAX;
+        } else if (*samplep < 0) {
             *samplep = -*samplep;
         }
-        sample = *samplep;
-        sample_sum += sample;
-        if (i == 0) {
-            pa_sample_min = sample;
-            pa_sample_max = sample;
-        } else {
-            if (sample < pa_sample_min) {
-                pa_sample_min = sample;
-            }
-            if (sample > pa_sample_max) {
-                pa_sample_max = sample;
-            }
-        }
     }
-    pa_sample_avg = (sample_sum + sample_buffer_samples / 2) / sample_buffer_samples;
 }
