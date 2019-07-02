@@ -24,7 +24,6 @@ size_t regulator_read(int16_t *ptr, size_t samples);
 void regulator_analyze_tick(int16_t *ptr);
 void regulator_usage();
 void regulator_options(int *argcp, char * const **argvp);
-void regulator_show_vu();
 float compute_kendall_thiel_best_fit(tick_peak_t *data, size_t ticks);
 
 int sample_sort(const regulator_sample_t *a,
