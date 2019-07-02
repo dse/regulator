@@ -1,5 +1,3 @@
-CC = clang
-
 LIBRARIES = libpulse-simple sndfile
 
 CFLAGS  += -g -Wall -Wextra $(shell pkg-config --cflags $(LIBRARIES))
