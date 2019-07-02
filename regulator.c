@@ -184,10 +184,10 @@ void regulator_run() {
         size_t extra_samples = 0;
 
         if (this_tick_is_good) {
-            if (this_tick_peak < samples_per_tick / 5) {
+            if (this_tick_peak < samples_per_tick * SHIFT_POINT_PERCENT / 100) {
                 samples_too_fast += 1;
                 samples_too_slow = 0;
-            } else if (this_tick_peak >= samples_per_tick * 4 / 5) {
+            } else if (this_tick_peak >= samples_per_tick * (100 - SHIFT_POINT_PERCENT) / 100) {
                 samples_too_fast = 0;
                 samples_too_slow += 1;
             } else {
@@ -200,16 +200,14 @@ void regulator_run() {
         too_slow = (samples_too_slow >= 3);
 
         if (too_fast) {
-            /* [  ^                ]  ^      */
-            /*         [                   ] */
-            samples_needed += (extra_samples = samples_per_tick * 2 / 5);
+            /* next tick is close at hand; next read will be tick */
+            samples_needed += (extra_samples = samples_per_tick * SHIFT_POINT_PERCENT * 3 / 100);
             if (debug >= 2) {
                 printf("too fast; will read %d extra samples\n", (int)extra_samples);
             }
         } else if (too_slow) {
-            /* [                ^  ]                ^ */
-            /*             [                   ]      */
-            samples_needed += (extra_samples = samples_per_tick * 3 / 5);
+            /* next tick is kinda far; next read will be blank */
+            samples_needed += (extra_samples = samples_per_tick * (100 - SHIFT_POINT_PERCENT * 3) / 100);
             if (debug >= 2) {
                 printf("too slow; will read %d extra samples\n", (int)extra_samples);
             }
@@ -425,6 +423,7 @@ void regulator_analyze_tick(int16_t *buffer) {
         sample_sort_buffer[i].sample = buffer[i];
         sample_sort_buffer[i].index = i;
     }
+
     qsort(sample_sort_buffer, samples_per_tick, sizeof(regulator_sample_t),
           (int (*)(const void *, const void *))sample_sort);
 
@@ -434,7 +433,7 @@ void regulator_analyze_tick(int16_t *buffer) {
         if (index < (samples_per_tick * PEAK_WAY_OFF_THRESHOLD_1 / PEAK_SAMPLES)) {
             low_indexes += 1;
         }
-        if ((samples_per_tick - index) < (samples_per_tick * PEAK_WAY_OFF_THRESHOLD_1 / PEAK_SAMPLES)) {
+        if ((samples_per_tick - index) <= (samples_per_tick * PEAK_WAY_OFF_THRESHOLD_1 / PEAK_SAMPLES)) {
             high_indexes += 1;
         }
     }
