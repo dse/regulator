@@ -4,6 +4,8 @@
  * Copyright (C) 2019 Darren Embry.  GPL2.
  */
 
+#define REGULATOR_C
+
 #ifdef HAVE_CONFIG_H
 #include <config.h>
 #endif /* HAVE_CONFIG_H */
@@ -34,15 +36,15 @@ int main(int argc, char * const argv[]) {
     regulator_run();
 }
 
-static int debug = 0;
-static char *audio_filename = NULL;
-static size_t ticks_per_hour = 3600; /* how to guess? */
-static size_t samples_per_tick = 0;
-static size_t sample_buffer_frames;  /* e.g., 44100 */
-static size_t sample_buffer_samples; /* e.g., 88200 if stereo */
-static size_t sample_buffer_bytes;   /* e.g., 176400 if 16-bit */
-static size_t bytes_per_frame;      /* e.g., 4 for 16-bit stereo */
-static regulator_sample_t *sample_sort_buffer = NULL;
+int debug = 0;
+char *audio_filename = NULL;
+size_t ticks_per_hour = 3600; /* how to guess? */
+size_t samples_per_tick = 0;
+size_t sample_buffer_frames;  /* e.g., 44100 */
+size_t sample_buffer_samples; /* e.g., 88200 if stereo */
+size_t sample_buffer_bytes;   /* e.g., 176400 if 16-bit */
+size_t bytes_per_frame;      /* e.g., 4 for 16-bit stereo */
+regulator_sample_t *sample_sort_buffer = NULL;
 
 static int this_tick_is_good = 0;
 static size_t this_tick_peak = SIZE_MAX;

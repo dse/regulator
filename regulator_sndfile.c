@@ -4,7 +4,15 @@
  * Copyright (C) 2019 Darren Embry.  GPL2.
  */
 
+#define REGULATOR_SNDFILE_C
+
+#include <stdlib.h>
+
 #include <sndfile.h>
+#include <stdio.h>
+
+#include "regulator.h"
+#include "regulator_sndfile.h"
 
 static SNDFILE* sf;
 static SF_INFO sfinfo = { .frames     = 0,
@@ -14,7 +22,6 @@ static SF_INFO sfinfo = { .frames     = 0,
                           .sections   = 0,
                           .seekable   = 0 };
 static int *sf_sample_buffer;
-static sf_count_t sf_frames;
 
 #define sf_num_frames sample_buffer_frames
 #define sf_num_items  sample_buffer_samples

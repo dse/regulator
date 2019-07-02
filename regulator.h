@@ -36,9 +36,22 @@ int float_sort(const float *a, const float *b);
 
 /* You are not expected to understand this. */
 /* You are not guaranteed to be able to use this in an #if. */
+#ifdef REGULATOR_C
 int16_t _endian_test = 0x0001;
+#else
+extern int16_t _endian_test;
+#endif
 #define IS_LITTLE_ENDIAN (*((char *)&_endian_test))
 
 extern char *progname;
+extern int debug;
+extern char *audio_filename;
+extern size_t ticks_per_hour; /* how to guess? */
+extern size_t samples_per_tick;
+extern size_t sample_buffer_frames;  /* e.g., 44100 */
+extern size_t sample_buffer_samples; /* e.g., 88200 if stereo */
+extern size_t sample_buffer_bytes;   /* e.g., 176400 if 16-bit */
+extern size_t bytes_per_frame;      /* e.g., 4 for 16-bit stereo */
+extern regulator_sample_t *sample_sort_buffer;
 
 #endif  /* REGULATOR_H */

@@ -4,8 +4,16 @@
  * Copyright (C) 2019 Darren Embry.  GPL2.
  */
 
+#define REGULATOR_PULSEAUDIO_C
+
+#include <stdlib.h>
+#include <stdio.h>
+
 #include <pulse/simple.h>
 #include <pulse/error.h>
+
+#include "regulator.h"
+#include "regulator_pulseaudio.h"
 
 static pa_simple *pa_s = NULL;
 static int pa_error = 0;
@@ -35,7 +43,7 @@ void regulator_pulseaudio_open() {
 
     if ((3600 * pa_ss.rate) % ticks_per_hour) {
         fprintf(stderr, "%s: can't process --ticks-per-hour=%d, sample rate is %d/sec\n",
-                progname, (int)ticks_per_hour, sfinfo.samplerate);
+                progname, (int)ticks_per_hour, pa_ss.rate);
         exit(1);
     }
     samples_per_tick = 3600 * pa_ss.rate / ticks_per_hour;
