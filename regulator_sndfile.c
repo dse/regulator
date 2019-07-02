@@ -7,9 +7,9 @@
 #define REGULATOR_SNDFILE_C
 
 #include <stdlib.h>
+#include <stdio.h>
 
 #include <sndfile.h>
-#include <stdio.h>
 
 #include "regulator.h"
 #include "regulator_sndfile.h"
