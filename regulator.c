@@ -54,10 +54,14 @@ static size_t this_tick_peak = SIZE_T_MAX;
 static size_t this_tick_shift_by_half = 0;
 
 static pa_simple *pa_s = NULL;
+static int pa_error = 0;
+
+/* sample specification */
 static pa_sample_spec pa_ss = { .format   = PA_SAMPLE_S16LE,
                                 .rate     = 44100,
                                 .channels = 1 };
-static int pa_error = 0;
+
+/* buffer attributes */
 static pa_buffer_attr pa_ba = { .maxlength = 44100,
                                 .minreq    = 0,
                                 .prebuf    = 0,
