@@ -140,7 +140,8 @@ void regulator_run() {
             exit(1);
         }
         if (debug >= 2) {
-            printf("too many ticks at beginning or end of windows; shifting and trying again\n");
+            printf("too many ticks at beginning or end of windows; "
+                   "shifting and trying again\n");
         }
         tried_shifting_by_half = 1;
         if (regulator_read(append_pointer, samples_per_tick / 2) < (samples_per_tick / 2)) {
@@ -490,7 +491,8 @@ float kt_best_fit(tick_peak_t *data, size_t ticks) {
     size_t si = 0;
     for (i = 0; i < ticks - 1; i += 1) {
         for (j = i + 1; j < ticks; j += 1) {
-            slopes[si] = (0.0f + data[j].peak - data[i].peak) / (0.0f + data[j].index - data[i].index);
+            slopes[si] = (0.0f + data[j].peak - data[i].peak) /
+                (0.0f + data[j].index - data[i].index);
             si += 1;
         }
     }
