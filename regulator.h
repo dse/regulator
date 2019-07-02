@@ -5,9 +5,9 @@
 
 #define PA_SAMPLE_SPEC_BUFSIZE 1024
 #define TICKS_PER_GROUP 20
-#define PEAK_SAMPLES 20
-#define PEAK_WAY_OFF_THRESHOLD_1 2
-#define PEAK_WAY_OFF_THRESHOLD_2 3
+#define PEAK_SAMPLES 10
+#define PEAK_WAY_OFF_THRESHOLD_1 1
+#define PEAK_WAY_OFF_THRESHOLD_2 1
 
 typedef struct regulator_sample_t {
     int16_t sample;
