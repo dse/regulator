@@ -42,7 +42,7 @@ int main(int argc, char * const argv[]) {
 int debug = 0;
 static char *audio_filename = NULL;
 static size_t ticks_per_hour = 3600; /* how to guess? */
-static size_t samples_per_tick = 44100;
+static size_t samples_per_tick = 0;
 static size_t sample_buffer_frames;  /* e.g., 44100 */
 static size_t sample_buffer_samples; /* e.g., 88200 if stereo */
 static size_t sample_buffer_bytes;   /* e.g., 176400 if 16-bit */
@@ -73,12 +73,32 @@ static pa_buffer_attr pa_ba = { .maxlength = 44100,
 
 /* after options are set */
 void regulator_run() {
+    if (audio_filename == NULL) {
+        regulator_pulseaudio_open();
+    } else {
+        regulator_sndfile_open();
+    }
+
+    if (debug >= 2) {
+        printf("%d ticks per hour\n", (int)ticks_per_hour);
+        printf("%d samples per tick\n", (int)samples_per_tick);
+        printf("%d sample buffer frames\n", (int)sample_buffer_frames);
+        printf("%d sample buffer samples\n", (int)sample_buffer_samples);
+        printf("%d sample buffer bytes\n", (int)sample_buffer_bytes);
+        printf("%d bytes per frame\n", (int)bytes_per_frame);
+    }
+
     size_t samples;
     size_t tick_count = 0;
     size_t tick_index;
-    size_t ticks_in_sample_data_block = (TICKS_PER_GROUP * 2 + 1);
+    size_t ticks_in_sample_data_block = (TICKS_PER_GROUP * 2 + 2);
     size_t samples_in_sample_data_block = ticks_in_sample_data_block * samples_per_tick;
     int16_t *sample_data_block = (int16_t *)malloc(sizeof(int16_t) * samples_in_sample_data_block);
+
+    if (debug >= 2) {
+        printf("%d ticks in sample data block\n", (int)ticks_in_sample_data_block);
+        printf("%d samples in sample data block\n", (int)samples_in_sample_data_block);
+    }
 
     int16_t *append_pointer = sample_data_block;
     size_t append_index = 0;
@@ -90,12 +110,6 @@ void regulator_run() {
     size_t good_tick_count = 0;
     tick_peak_t *tick_peak_data = (tick_peak_t *)malloc(sizeof(tick_peak_t) * ticks_per_hour);
     size_t tick_peak_index = 0;
-
-    if (audio_filename == NULL) {
-        regulator_pulseaudio_open();
-    } else {
-        regulator_sndfile_open();
-    }
 
     for (; tick_count < TICKS_PER_GROUP; tick_count += 1) {
         if ((samples = regulator_read(append_pointer, samples_per_tick)) < samples_per_tick) {
@@ -117,8 +131,19 @@ void regulator_run() {
         if (this_tick_is_good) {
             tick_peak_data[tick_peak_index].index = tick_index;
             tick_peak_data[tick_peak_index].peak  = this_tick_peak;
+            if (debug >= 2) {
+                printf("data point # %6d: %6d at tick # %6d\n",
+                       (int)tick_peak_index,
+                       (int)this_tick_peak,
+                       (int)tick_index);
+            }
             tick_peak_index += 1;
             good_tick_count += 1;
+        } else {
+            if (debug >= 2) {
+                printf("data not good enough at tick # %6d\n",
+                       (int)tick_index);
+            }
         }
     }
 
@@ -126,6 +151,9 @@ void regulator_run() {
         if (tried_shifting_by_half) {
             fprintf(stderr, "%s: UNEXPECTED ERROR 1\n", progname);
             exit(1);
+        }
+        if (debug >= 2) {
+            printf("too many ticks at beginning or end of windows; shifting and trying again\n");
         }
         tried_shifting_by_half = 1;
         if ((samples = regulator_read(append_pointer, samples_per_tick / 2)) < (samples_per_tick / 2)) {
@@ -143,25 +171,54 @@ void regulator_run() {
         goto reanalyze;
     }
 
+    int samples_too_fast = 0;
+    int samples_too_slow = 0;
+
+    int too_fast = 0;
+    int too_slow = 0;
+
     /* max. 1 hour of data, I guess */
     for (; tick_count < ticks_per_hour; tick_count += 1) {
 
         size_t samples_needed = samples_per_tick;
         size_t extra_samples = 0;
-        int too_fast = 0;
-        int too_slow = 0;
 
         if (this_tick_is_good) {
-            if (this_tick_peak < samples_per_tick / 4) {
-                too_fast = 1;
-                samples_needed += (extra_samples = samples_per_tick * 3 / 4);
-            } else if (this_tick_peak >= samples_per_tick * 3 / 4) {
-                too_slow = 1;
-                samples_needed += (extra_samples = samples_per_tick / 4);
+            if (this_tick_peak < samples_per_tick / 5) {
+                samples_too_fast += 1;
+                samples_too_slow = 0;
+            } else if (this_tick_peak >= samples_per_tick * 4 / 5) {
+                samples_too_fast = 0;
+                samples_too_slow += 1;
+            } else {
+                samples_too_fast = 0;
+                samples_too_slow = 0;
+            }
+        }
+
+        too_fast = (samples_too_fast >= 3);
+        too_slow = (samples_too_slow >= 3);
+
+        if (too_fast) {
+            /* [  ^                ]  ^      */
+            /*         [                   ] */
+            samples_needed += (extra_samples = samples_per_tick * 2 / 5);
+            if (debug >= 2) {
+                printf("too fast; will read %d extra samples\n", (int)extra_samples);
+            }
+        } else if (too_slow) {
+            /* [                ^  ]                ^ */
+            /*             [                   ]      */
+            samples_needed += (extra_samples = samples_per_tick * 3 / 5);
+            if (debug >= 2) {
+                printf("too slow; will read %d extra samples\n", (int)extra_samples);
             }
         }
 
         if (append_index + samples_needed >= samples_in_sample_data_block) {
+            if (debug >= 2) {
+                printf("cleanup\n");
+            }
             memmove(/* dest */ sample_data_block,
                     /* src  */ sample_data_block + (append_index - samples_per_tick * TICKS_PER_GROUP),
                     /* n    */ sizeof(int16_t) * samples_per_tick * TICKS_PER_GROUP);
@@ -171,59 +228,66 @@ void regulator_run() {
             analyze_index   = append_index;
         }
 
+        int must_analyze      = 1;
+        int must_do_full_read = 1;
+
         if (too_fast) {
-            /*             v-- append */
-            /* [ |         ] */
-            /*             ^-- analyze */
+            /*                             V-- append */
+            /*         V-- analyze */
+            /* [  ^                ]  ^      */
+            /*         [                   ] */
             if ((samples = regulator_read(append_pointer, extra_samples)) < extra_samples) {
                 /* no more data */
                 break;
             }
             append_pointer += extra_samples;
             append_index   += extra_samples;
-            /* [ |         ]        v-- append */
-            /*             [ |      ] */
-            /*             ^-- analyze */
             analyze_pointer = analyze_pointer + extra_samples - samples_per_tick;
             analyze_index   = analyze_index   + extra_samples - samples_per_tick;
-            /* [ |         ]        v-- append */
-            /*          [    |      ] */
-            /*          ^-- analyze */
+            if (debug >= 2) {
+                printf("shifting ticks 0 through %d by %d\n",
+                       (int)(tick_count - 1),
+                       (int)(samples_per_tick - extra_samples));
+            }
             for (tick_index = 0; tick_index < tick_count; tick_index += 1) {
                 tick_peak_data[tick_peak_index].peak += samples_per_tick - extra_samples;
             }
-            /*                      v-- append */
-            /*   |      ] */
-            /*          [    |      ] */
-            /*          ^-- analyze */
-            /* don't need to read again but need to analyze */
+            samples_too_fast = 0;
+            samples_too_slow = 0;
+
+            /* to work on the next tick */
+            must_analyze = 1;
+            must_do_full_read = 0;
         } else if (too_slow) {
-            /*             v-- append */
-            /* [         | ] */
-            /*             ^-- analyze */
+            /*                                 V-- append */
+            /*                                 V-- analyze */
+            /* [                ^  ]                ^ */
+            /*             [                   ]      */
             if ((samples = regulator_read(append_pointer, extra_samples)) < extra_samples) {
                 /* no more data */
                 break;
             }
             append_pointer += extra_samples;
             append_index   += extra_samples;
-            /* [         | ]  v-- append */
-            /*             [  ] */
-            /*             ^-- analyze */
             analyze_pointer += extra_samples;
             analyze_index   += extra_samples;
-            /* [         | ]  v-- append */
-            /*             [  ] */
-            /*                ^-- analyze */
+            if (debug >= 2) {
+                printf("shifting ticks 0 through %d by %d\n",
+                       (int)(tick_count - 1),
+                       (int)(-extra_samples));
+            }
             for (tick_index = 0; tick_index < tick_count; tick_index += 1) {
                 tick_peak_data[tick_peak_index].peak -= extra_samples;
             }
-            /*                v-- append */
-            /*    [      |    ] */
-            /*                ^-- analyze */
+            samples_too_fast = 0;
+            samples_too_slow = 0;
+
+            /* to work on the next tick */
+            must_analyze = 1;
+            must_do_full_read = 1;
         }
 
-        if (!too_fast) {
+        if (must_do_full_read) {
             if ((samples = regulator_read(append_pointer, samples_per_tick)) < samples_per_tick) {
                 /* no more data */
                 break;
@@ -232,15 +296,28 @@ void regulator_run() {
             append_index   += samples_per_tick;
         }
 
-        regulator_analyze_tick(analyze_pointer);
-        analyze_pointer += samples_per_tick;
-        analyze_index   += samples_per_tick;
+        if (must_analyze) {
+            regulator_analyze_tick(analyze_pointer);
+            analyze_pointer += samples_per_tick;
+            analyze_index   += samples_per_tick;
 
-        if (this_tick_is_good) {
-            tick_peak_data[tick_peak_index].index = tick_count;
-            tick_peak_data[tick_peak_index].peak  = this_tick_peak;
-            tick_peak_index += 1;
-            good_tick_count += 1;
+            if (this_tick_is_good) {
+                tick_peak_data[tick_peak_index].index = tick_count;
+                tick_peak_data[tick_peak_index].peak  = this_tick_peak;
+                if (debug >= 2) {
+                    printf("data point # %6d: %6d at tick # %6d\n",
+                           (int)tick_peak_index,
+                           (int)this_tick_peak,
+                           (int)tick_count);
+                }
+                tick_peak_index += 1;
+                good_tick_count += 1;
+            } else {
+                if (debug >= 2) {
+                    printf("data not good enough at tick # %6d\n",
+                           (int)tick_count);
+                }
+            }
         }
     }
 
@@ -256,7 +333,14 @@ void regulator_run() {
     /* in seconds per day */
     drift = drift * 24;
 
-    printf("%f seconds per day\n", (double)drift);
+    if (drift < 0) {
+        printf("your clock is slow by %f seconds per day\n", (double)(-drift));
+    } else if (drift > 0) {
+        printf("your clock is fast by %f seconds per day\n", (double)drift);
+    } else {
+        printf("perfect!\n");
+    }
+
     if (debug >= 1) {
         printf("%d good data points out of %d wanted\n", (int)good_tick_count, (int)tick_count);
     }
