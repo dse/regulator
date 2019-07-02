@@ -58,7 +58,6 @@ static pa_sample_spec pa_ss = { .format   = PA_SAMPLE_S16LE,
                                 .rate     = 44100,
                                 .channels = 1 };
 static int pa_error = 0;
-static char pa_ss_string[PA_SAMPLE_SPEC_BUFSIZE];
 
 static int16_t pa_sample_max;
 static int16_t pa_sample_min;
@@ -522,8 +521,6 @@ void regulator_pulseaudio_open() {
 
     pa_ba.maxlength = sample_buffer_bytes;
     pa_ba.fragsize  = sample_buffer_bytes;
-
-    pa_sample_spec_snprint(pa_ss_string, PA_SAMPLE_SPEC_BUFSIZE, &pa_ss);
 
     pa_s = pa_simple_new(NULL,             /* server name */
                          progname,         /* name */
