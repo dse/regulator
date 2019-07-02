@@ -58,11 +58,6 @@ static pa_sample_spec pa_ss = { .format   = PA_SAMPLE_S16LE,
                                 .rate     = 44100,
                                 .channels = 1 };
 static int pa_error = 0;
-
-static int16_t pa_sample_max;
-static int16_t pa_sample_min;
-static int16_t pa_sample_avg;
-
 static pa_buffer_attr pa_ba = { .maxlength = 44100,
                                 .minreq    = 0,
                                 .prebuf    = 0,
@@ -578,31 +573,6 @@ size_t regulator_pulseaudio_read(int16_t *buffer, size_t samples) {
     }
 
     return samples;
-}
-
-void regulator_show_vu() {
-    int16_t min;
-    int16_t max;
-    int16_t avg;
-    int i;
-    min = pa_sample_min >> (sizeof(int16_t) * 8 - 7);
-    max = pa_sample_max >> (sizeof(int16_t) * 8 - 7);
-    avg = pa_sample_avg >> (sizeof(int16_t) * 8 - 7);
-    putchar('[');
-    for (i = 0; i < 64; i += 1) {
-        if (i == avg) {
-            putchar('*');
-        } else if (i < min) {
-            putchar(' ');
-        } else if (i <= max) {
-            putchar('-');
-        } else {
-            putchar(' ');
-        }
-    }
-    putchar(']');
-    putchar('\r');
-    fflush(stdout);
 }
 
 void regulator_usage() {
