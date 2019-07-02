@@ -409,7 +409,7 @@ void regulator_usage() {
     puts("        --ticks-per-hour=<ticks>    specify ticks per hour");
 }
 
-void regulator_options(int* argcp, char * const** argvp) {
+void regulator_options(int* argcp, char* const** argvp) {
     int c;
 
     char optstring[] = "hf:D";
