@@ -22,9 +22,9 @@
 #include "regulator_pulseaudio.h"
 #include "regulator_sndfile.h"
 
-char *progname;
+char* progname;
 
-int main(int argc, char * const argv[]) {
+int main(int argc, char* const argv[]) {
     set_progname(argc, argv);
     regulator_options(&argc, &argv);
     regulator_run();
@@ -46,7 +46,7 @@ char* set_progname(int argc, char* const argv[]) {
 }
 
 int debug = 0;
-char *audio_filename = NULL;
+char* audio_filename = NULL;
 size_t ticks_per_hour = 3600; /* how to guess? */
 size_t samples_per_tick = 0;
 size_t sample_buffer_frames;  /* e.g., 44100 */
@@ -54,7 +54,7 @@ size_t sample_buffer_samples; /* e.g., 88200 if stereo */
 size_t sample_buffer_bytes;   /* e.g., 176400 if 16-bit */
 size_t bytes_per_frame;       /* e.g., 4 for 16-bit stereo */
 size_t frames_per_second;     /* e.g., 44100 */
-regulator_sample_t *sample_sort_buffer = NULL;
+regulator_sample_t* sample_sort_buffer = NULL;
 
 static int this_tick_is_good = 0;
 static size_t this_tick_peak = SIZE_MAX;
@@ -81,7 +81,7 @@ void regulator_run() {
     size_t tick_index;
     size_t ticks_in_sample_data_block = (TICKS_PER_GROUP * 2 + 2);
     size_t samples_in_sample_data_block = ticks_in_sample_data_block * samples_per_tick;
-    int16_t *sample_data_block = (int16_t *)malloc(sizeof(int16_t) * samples_in_sample_data_block);
+    int16_t* sample_data_block = (int16_t*)malloc(sizeof(int16_t) * samples_in_sample_data_block);
     if (!sample_data_block) {
         perror(progname);
         exit(1);
@@ -92,15 +92,15 @@ void regulator_run() {
         printf("%d samples in sample data block\n", (int)samples_in_sample_data_block);
     }
 
-    int16_t *append_pointer = sample_data_block;
+    int16_t* append_pointer = sample_data_block;
     size_t append_index = 0;
-    int16_t *analyze_pointer = sample_data_block;
+    int16_t* analyze_pointer = sample_data_block;
     size_t analyze_index = 0;
 
     int tried_shifting_by_half = 0;
     size_t tick_shift_by_half_count = 0;
     size_t good_tick_count = 0;
-    tick_peak_t *tick_peak_data = (tick_peak_t *)malloc(sizeof(tick_peak_t) * ticks_per_hour);
+    tick_peak_t* tick_peak_data = (tick_peak_t*)malloc(sizeof(tick_peak_t) * ticks_per_hour);
     if (!tick_peak_data) {
         perror(progname);
         exit(1);
@@ -341,7 +341,7 @@ void regulator_run() {
     }
 }
 
-size_t regulator_read(int16_t *buffer, size_t samples) {
+size_t regulator_read(int16_t* buffer, size_t samples) {
     size_t samples_read;
     if (audio_filename == NULL) {
         samples_read = regulator_pulseaudio_read(buffer, samples);
@@ -352,7 +352,7 @@ size_t regulator_read(int16_t *buffer, size_t samples) {
 }
 
 /* mainly to find the peak */
-void regulator_analyze_tick(int16_t *buffer) {
+void regulator_analyze_tick(int16_t* buffer) {
     size_t i;
     size_t peak_sample_indexes[PEAK_SAMPLES];
     size_t index;
@@ -365,7 +365,7 @@ void regulator_analyze_tick(int16_t *buffer) {
     }
 
     qsort(sample_sort_buffer, samples_per_tick, sizeof(regulator_sample_t),
-          (int (*)(const void *, const void *))sample_sort);
+          (int(*)(const void*, const void*))sample_sort);
 
     for (i = 0; i < PEAK_SAMPLES; i += 1) {
         index = sample_sort_buffer[i].index;
@@ -385,7 +385,7 @@ void regulator_analyze_tick(int16_t *buffer) {
                                high_indexes >= (PEAK_WAY_OFF_THRESHOLD_2 * 2));
 
     qsort(peak_sample_indexes, PEAK_SAMPLES, sizeof(size_t),
-          (int (*)(const void *, const void *))size_t_sort);
+          (int(*)(const void*, const void*))size_t_sort);
     size_t lowest_index  = peak_sample_indexes[PEAK_WAY_OFF_THRESHOLD_2];
     size_t highest_index = peak_sample_indexes[PEAK_SAMPLES - 1 - PEAK_WAY_OFF_THRESHOLD_2];
     this_tick_is_good = ((highest_index - lowest_index) < samples_per_tick * PEAK_WAY_OFF_THRESHOLD_1 / PEAK_SAMPLES);
@@ -409,11 +409,11 @@ void regulator_usage() {
     puts("        --ticks-per-hour=<ticks>    specify ticks per hour");
 }
 
-void regulator_options(int *argcp, char * const **argvp) {
+void regulator_options(int* argcp, char * const** argvp) {
     int c;
 
     char optstring[] = "hf:D";
-    const char *longoptname;
+    const char* longoptname;
     static struct option long_options[] =
         {
          /* name,            has_arg,           flag, val */
@@ -438,7 +438,7 @@ void regulator_options(int *argcp, char * const **argvp) {
             longoptname = long_options[option_index].name;
             if (!strcmp(longoptname, "ticks-per-hour")) {
                 errno = 0;
-                ticks_per_hour = (int)strtol(optarg, (char **)NULL, 10);
+                ticks_per_hour = (int)strtol(optarg, (char**)NULL, 10);
                 if (ticks_per_hour < 1) {
                     fprintf(stderr, "%s: invalid --ticks-per-hour value: %s\n", progname, optarg);
                     exit(1);
@@ -485,12 +485,12 @@ void regulator_options(int *argcp, char * const **argvp) {
 /**
  * Kendall-Thiel best fit.  Mainly so outliers affect the results less.
  */
-float kt_best_fit(tick_peak_t *data, size_t ticks) {
+float kt_best_fit(tick_peak_t* data, size_t ticks) {
     if (ticks < 2) {
         return 0;
     }
     size_t nslopes = ((ticks * (ticks - 1)) / 2);
-    float *slopes = (float *)malloc(sizeof(float) * nslopes);
+    float* slopes = (float*)malloc(sizeof(float) * nslopes);
     if (!slopes) {
         perror(progname);
         exit(1);
@@ -506,7 +506,7 @@ float kt_best_fit(tick_peak_t *data, size_t ticks) {
         }
     }
     qsort(slopes, nslopes, sizeof(float),
-          (int (*)(const void *, const void *))float_sort);
+          (int(*)(const void*, const void*))float_sort);
     float result;
     if (nslopes % 2 == 0) {
         result = (slopes[nslopes / 2] + slopes[nslopes / 2 - 1]) / 2;
@@ -521,20 +521,20 @@ float kt_best_fit(tick_peak_t *data, size_t ticks) {
  * For sampling magnitude-index sample pairs in decreasing order of
  * magnitude, to find peaks.
  */
-int sample_sort(const regulator_sample_t *a, const regulator_sample_t *b) {
+int sample_sort(const regulator_sample_t* a, const regulator_sample_t* b) {
     return (a->sample < b->sample) ? 1 : (a->sample > b->sample) ? -1 : 0;
 }
 
 /**
  * Helper function for peak finding.
  */
-int size_t_sort(const size_t *a, const size_t *b) {
+int size_t_sort(const size_t* a, const size_t* b) {
     return (*a < *b) ? -1 : (*a > *b) ? 1 : 0;
 }
 
 /**
  * Helper function for best fit.
  */
-int float_sort(const float *a, const float *b) {
+int float_sort(const float* a, const float* b) {
     return (*a < *b) ? -1 : (*a > *b) ? 1 : 0;
 }

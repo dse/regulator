@@ -15,7 +15,7 @@
 #include "regulator.h"
 #include "regulator_pulseaudio.h"
 
-static pa_simple *pa_s = NULL;
+static pa_simple* pa_s = NULL;
 static int pa_error = 0;
 
 /* sample specification */
@@ -72,16 +72,16 @@ void regulator_pulseaudio_open() {
     }
 
     if (!(sample_sort_buffer =
-          (regulator_sample_t *)
+          (regulator_sample_t*)
           malloc(sample_buffer_frames * sizeof(regulator_sample_t)))) {
         perror(progname);
         exit(1);
     }
 }
 
-size_t regulator_pulseaudio_read(int16_t *buffer, size_t samples) {
+size_t regulator_pulseaudio_read(int16_t* buffer, size_t samples) {
     size_t i;
-    int16_t *samplep;
+    int16_t* samplep;
 
     if (pa_simple_read(pa_s, buffer, samples * bytes_per_frame, &pa_error) < 0) {
         fprintf(stderr, "%s: pa_simple_read failed: %s\n", progname, pa_strerror(pa_error));
@@ -90,10 +90,10 @@ size_t regulator_pulseaudio_read(int16_t *buffer, size_t samples) {
 
     /* if on a big-endian system, convert from little endian by swapping bytes, lol */
     if (!IS_LITTLE_ENDIAN) {
-        char *a;
-        char *b;
+        char* a;
+        char* b;
         for (i = 0; i < samples * pa_ss.channels; i += 1) {
-            a = (char *)(buffer + i);
+            a = (char*)(buffer + i);
             b = a + 1;
 
             /* swap */

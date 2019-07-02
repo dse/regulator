@@ -21,7 +21,7 @@ static SF_INFO sfinfo = { .frames     = 0,
                           .format     = 0, /* set to 0 before reading */
                           .sections   = 0,
                           .seekable   = 0 };
-static int *sf_sample_buffer;
+static int* sf_sample_buffer;
 
 #define sf_num_frames sample_buffer_frames
 #define sf_num_items  sample_buffer_samples
@@ -48,19 +48,19 @@ void regulator_sndfile_open() {
     bytes_per_frame       = sfinfo.channels * sizeof(int);
     frames_per_second     = sfinfo.samplerate;
 
-    if (!(sf_sample_buffer = (int *)malloc(sample_buffer_bytes))) {
+    if (!(sf_sample_buffer = (int*)malloc(sample_buffer_bytes))) {
         perror(progname);
         exit(1);
     }
     if (!(sample_sort_buffer =
-          (regulator_sample_t *)
+          (regulator_sample_t*)
           malloc(sample_buffer_frames * sizeof(regulator_sample_t)))) {
         perror(progname);
         exit(1);
     }
 }
 
-size_t regulator_sndfile_read(int16_t *buffer, size_t samples) {
+size_t regulator_sndfile_read(int16_t* buffer, size_t samples) {
     sf_count_t sf_frames;
     sf_count_t i;
     int sample;                 /* int, as read from sf_readf_int */
