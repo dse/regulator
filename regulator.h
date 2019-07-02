@@ -3,6 +3,9 @@
 
 #include <unistd.h>
 
+#include "regulator_sndfile.h"
+#include "regulator_pulseaudio.h"
+
 #define TICKS_PER_GROUP          20
 #define PEAK_SAMPLES             20
 #define PEAK_WAY_OFF_THRESHOLD_1 (PEAK_SAMPLES * 5 / 100)
@@ -18,6 +21,30 @@ typedef struct tick_peak_t {
     size_t index;
     size_t peak;
 } tick_peak_t;
+
+typedef union regulator_implementation_t {
+    regulator_pulseaudio_t pulseaudio;
+    regulator_sndfile_t    sndfile;
+} regulator_implementation_t;
+
+typedef struct regulator_t {
+    int debug;
+    char *filename;
+    size_t ticks_per_hour;        /* e.g., 3600 * 5  = 18000 for 5 ticks/second */
+    size_t samples_per_tick;      /* e.g., 44100 / 5 = 8820 */
+    size_t sample_buffer_frames;  /* e.g., 44100 / 5 = 8820 */
+    size_t sample_buffer_samples; /* e.g., 8820 * 2  = 17640 for stereo */
+    size_t sample_buffer_bytes;   /* e.g., 17640 * 2 = 35280 for 16-bit */
+    size_t bytes_per_frame;       /* e.g., 2 * 2     = 4 for 16-bit stereo */
+    size_t frames_per_second;     /* e.g.,             44100 */
+    regulator_sample_t *sample_sort_buffer; /* for finding peaks */
+
+    int this_tick_is_good;
+    size_t this_tick_peak;
+    int this_tick_shift_by_half;
+
+    regulator_implementation_t implementation;
+} regulator_t;
 
 void regulator_run();
 size_t regulator_read(int16_t *ptr, size_t samples);
