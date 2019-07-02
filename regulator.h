@@ -53,8 +53,7 @@ void regulator_usage();
 void regulator_options(int *argcp, char * const **argvp);
 float kt_best_fit(tick_peak_t *data, size_t ticks);
 
-int sample_sort(const regulator_sample_t *a,
-                const regulator_sample_t *b);
+int sample_sort(const regulator_sample_t *a, const regulator_sample_t *b);
 int size_t_sort(const size_t *a, const size_t *b);
 int float_sort(const float *a, const float *b);
 
