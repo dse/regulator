@@ -16,16 +16,11 @@
 #include <stdlib.h>
 #include <getopt.h>
 
-/* PulseAudio */
-#include <pulse/simple.h>
-#include <pulse/error.h>
-
-/* sndfile */
-#include <sndfile.h>
-
 #include "regulator.h"
+#include "regulator_pulseaudio.h"
+#include "regulator_sndfile.h"
 
-static char *progname;
+char *progname;
 
 int main(int argc, char * const argv[]) {
     char *p;
@@ -52,21 +47,6 @@ static regulator_sample_t *sample_sort_buffer = NULL;
 static int this_tick_is_good = 0;
 static size_t this_tick_peak = SIZE_T_MAX;
 static size_t this_tick_shift_by_half = 0;
-
-static pa_simple *pa_s = NULL;
-static int pa_error = 0;
-
-/* sample specification */
-static pa_sample_spec pa_ss = { .format   = PA_SAMPLE_S16LE,
-                                .rate     = 44100,
-                                .channels = 1 };
-
-/* buffer attributes */
-static pa_buffer_attr pa_ba = { .maxlength = 44100,
-                                .minreq    = 0,
-                                .prebuf    = 0,
-                                .tlength   = 0,
-                                .fragsize  = 44100 };
 
 /* after options are set */
 void regulator_run() {
@@ -363,52 +343,6 @@ int sample_sort(const regulator_sample_t *a,
     return 0;
 }
 
-static SNDFILE* sf;
-static SF_INFO sfinfo = { .frames     = 0,
-                          .samplerate = 0,
-                          .channels   = 0,
-                          .format     = 0, /* set to 0 before reading */
-                          .sections   = 0,
-                          .seekable   = 0 };
-static int *sf_sample_buffer;
-static sf_count_t sf_frames;
-
-#define sf_num_frames sample_buffer_frames
-#define sf_num_items  sample_buffer_samples
-
-#define CHANNEL_NUMBER 0
-
-void regulator_sndfile_open() {
-    sf = sf_open(audio_filename, SFM_READ, &sfinfo);
-    if (!sf) {
-        fprintf(stderr, "%s: unable to open %s: %s\n", progname, audio_filename, sf_strerror(NULL));
-        exit(1);
-    }
-
-    if ((3600 * sfinfo.samplerate) % ticks_per_hour) {
-        fprintf(stderr, "%s: can't process --ticks-per-hour=%d with this file, sample rate is %d/sec\n",
-                progname, (int)ticks_per_hour, sfinfo.samplerate);
-        exit(1);
-    }
-    samples_per_tick = 3600 * sfinfo.samplerate / ticks_per_hour;
-
-    sample_buffer_frames  = samples_per_tick;
-    sample_buffer_samples = sample_buffer_frames * sfinfo.channels;
-    sample_buffer_bytes   = sample_buffer_samples * sizeof(int);
-    bytes_per_frame      = sfinfo.channels * sizeof(int);
-
-    if (!(sf_sample_buffer = (int *)malloc(sample_buffer_bytes))) {
-        perror(progname);
-        exit(1);
-    }
-    if (!(sample_sort_buffer =
-          (regulator_sample_t *)
-          malloc(sample_buffer_frames * sizeof(regulator_sample_t)))) {
-        perror(progname);
-        exit(1);
-    }
-}
-
 size_t regulator_read(int16_t *buffer, size_t samples) {
     size_t samples_read;
     if (audio_filename == NULL) {
@@ -474,111 +408,7 @@ int size_t_sort(const size_t *a, const size_t *b) {
     return 0;
 }
 
-size_t regulator_sndfile_read(int16_t *buffer, size_t samples) {
-    sf_count_t sf_frames;
-    sf_count_t i;
-    int sample;                 /* int, as read from sf_readf_int */
-    if ((sf_frames = sf_readf_int(sf, sf_sample_buffer, samples)) <= 0) {
-        return 0;
-    }
-    for (i = 0; i < sf_frames; i += 1) {
-        /* quantize an int to an int16_t */
-        sample = sf_sample_buffer[i * sfinfo.channels + CHANNEL_NUMBER] / (1 << ((sizeof(int) - sizeof(int16_t)) * 8));
-        if (sample == INT16_MIN) { /* -32768 => 32767 */
-            sample = INT16_MAX;
-        } else if (sample < 0) {
-            sample = -sample;
-        }
-        buffer[i] = sample;
-    }
-    return sf_frames;
-}
-
 /* after options are set */
-void regulator_pulseaudio_open() {
-    /* sanity check */
-    if (!pa_sample_spec_valid(&pa_ss)) {
-        fprintf(stderr, "%s: invalid sample specification\n", progname);
-        exit(1);
-    }
-    if (!pa_sample_rate_valid(pa_ss.rate)) {
-        fprintf(stderr, "%s: invalid sample rate\n", progname);
-        exit(1);
-    }
-
-    if ((3600 * pa_ss.rate) % ticks_per_hour) {
-        fprintf(stderr, "%s: can't process --ticks-per-hour=%d, sample rate is %d/sec\n",
-                progname, (int)ticks_per_hour, sfinfo.samplerate);
-        exit(1);
-    }
-    samples_per_tick = 3600 * pa_ss.rate / ticks_per_hour;
-
-    sample_buffer_frames  = samples_per_tick;
-    sample_buffer_samples = sample_buffer_frames * pa_ss.channels;
-    sample_buffer_bytes   = pa_bytes_per_second(&pa_ss) * 3600 / ticks_per_hour;
-    bytes_per_frame      = pa_ss.channels * sizeof(int16_t);
-
-    pa_ba.maxlength = sample_buffer_bytes;
-    pa_ba.fragsize  = sample_buffer_bytes;
-
-    pa_s = pa_simple_new(NULL,             /* server name */
-                         progname,         /* name */
-                         PA_STREAM_RECORD, /* direction */
-                         NULL,             /* device name or default */
-                         "record",         /* stream name */
-                         &pa_ss,           /* sample type */
-                         NULL,             /* channel map */
-                         &pa_ba,           /* buffering attributes */
-                         &pa_error);       /* error code */
-    if (!pa_s) {
-        fprintf(stderr, "%s: pa_simple_new() failed: %s\n", progname, pa_strerror(pa_error));
-        exit(1);
-    }
-
-    if (!(sample_sort_buffer =
-          (regulator_sample_t *)
-          malloc(sample_buffer_frames * sizeof(regulator_sample_t)))) {
-        perror(progname);
-        exit(1);
-    }
-}
-
-size_t regulator_pulseaudio_read(int16_t *buffer, size_t samples) {
-    size_t i;
-    int16_t *samplep;
-
-    if (pa_simple_read(pa_s, buffer, samples * bytes_per_frame, &pa_error) < 0) {
-        fprintf(stderr, "%s: pa_simple_read failed: %s\n", progname, pa_strerror(pa_error));
-        exit(1);
-    }
-
-    /* if on a big-endian system, convert from little endian by swapping bytes, lol */
-    if (!IS_LITTLE_ENDIAN) {
-        char *a;
-        char *b;
-        for (i = 0; i < samples * pa_ss.channels; i += 1) {
-            a = (char *)(buffer + i);
-            b = a + 1;
-
-            /* swap */
-            *a = *a ^ *b;
-            *b = *a ^ *b;
-            *a = *a ^ *b;
-        }
-    }
-
-    for (i = 0; i < samples * pa_ss.channels; i += 1) {
-        samplep = buffer + i;
-        if (*samplep == INT16_MIN) { /* -32768 => 32767 */
-            *samplep = INT16_MAX;
-        } else if (*samplep < 0) {
-            *samplep = -*samplep;
-        }
-    }
-
-    return samples;
-}
-
 void regulator_usage() {
     puts("usage: regulator [<option> ...] [<command>]");
     puts("commands:");

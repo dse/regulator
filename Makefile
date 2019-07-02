@@ -11,7 +11,7 @@ EXECUTABLES = regulator
 
 all: $(EXECUTABLES)
 
-regulator: regulator.o
+regulator: regulator.o regulator_sndfile.o regulator_pulseaudio.o
 
 clean:
 	rm $(OBJECTS) $(EXECUTABLES) || true

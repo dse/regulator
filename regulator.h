@@ -20,11 +20,7 @@ typedef struct tick_peak_t {
 } tick_peak_t;
 
 void regulator_run();
-void regulator_pulseaudio_open();
-void regulator_sndfile_open();
 size_t regulator_read(int16_t *ptr, size_t samples);
-size_t regulator_pulseaudio_read(int16_t *ptr, size_t samples);
-size_t regulator_sndfile_read(int16_t *ptr, size_t samples);
 void regulator_analyze_tick(int16_t *ptr);
 void regulator_usage();
 void regulator_options(int *argcp, char * const **argvp);
@@ -42,5 +38,7 @@ int float_sort(const float *a, const float *b);
 /* You are not guaranteed to be able to use this in an #if. */
 int16_t _endian_test = 0x0001;
 #define IS_LITTLE_ENDIAN (*((char *)&_endian_test))
+
+extern char *progname;
 
 #endif  /* REGULATOR_H */
