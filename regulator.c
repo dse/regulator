@@ -178,11 +178,11 @@ void regulator_run() {
         goto reanalyze;
     }
 
-    int samples_too_fast = 0;
-    int samples_too_slow = 0;
+    int samples_too_early = 0;
+    int samples_too_late = 0;
 
-    int too_fast = 0;
-    int too_slow = 0;
+    int too_early = 0;
+    int too_late = 0;
 
     /* max. 1 hour of data, I guess */
     for (; tick_count < ticks_per_hour; tick_count += 1) {
@@ -192,27 +192,27 @@ void regulator_run() {
 
         if (this_tick_is_good) {
             if (this_tick_peak < samples_per_tick * SHIFT_POINT_PERCENT / 100) {
-                samples_too_fast += 1;
-                samples_too_slow = 0;
+                samples_too_early += 1;
+                samples_too_late = 0;
             } else if (this_tick_peak >= samples_per_tick * (100 - SHIFT_POINT_PERCENT) / 100) {
-                samples_too_fast = 0;
-                samples_too_slow += 1;
+                samples_too_early = 0;
+                samples_too_late += 1;
             } else {
-                samples_too_fast = 0;
-                samples_too_slow = 0;
+                samples_too_early = 0;
+                samples_too_late = 0;
             }
         }
 
-        too_fast = (samples_too_fast >= 3);
-        too_slow = (samples_too_slow >= 3);
+        too_early = (samples_too_early >= 3);
+        too_late = (samples_too_late >= 3);
 
-        if (too_fast) {
+        if (too_early) {
             /* next tick is close at hand; next read will be tick */
             samples_needed += (extra_samples = samples_per_tick * SHIFT_POINT_PERCENT * 3 / 100);
             if (debug >= 2) {
                 printf("too fast; will read %d extra samples\n", (int)extra_samples);
             }
-        } else if (too_slow) {
+        } else if (too_late) {
             /* next tick is kinda far; next read will be blank */
             samples_needed += (extra_samples = samples_per_tick * (100 - SHIFT_POINT_PERCENT * 3) / 100);
             if (debug >= 2) {
@@ -236,7 +236,7 @@ void regulator_run() {
         int must_analyze      = 1;
         int must_do_full_read = 1;
 
-        if (too_fast) {
+        if (too_early) {
             /*                             V-- append */
             /*         V-- analyze */
             /* [  ^                ]  ^      */
@@ -257,13 +257,13 @@ void regulator_run() {
             for (tick_index = 0; tick_index < tick_count; tick_index += 1) {
                 tick_peak_data[tick_peak_index].peak += samples_per_tick - extra_samples;
             }
-            samples_too_fast = 0;
-            samples_too_slow = 0;
+            samples_too_early = 0;
+            samples_too_late = 0;
 
             /* to work on the next tick */
             must_analyze = 1;
             must_do_full_read = 0;
-        } else if (too_slow) {
+        } else if (too_late) {
             /*                                 V-- append */
             /*                                 V-- analyze */
             /* [                ^  ]                ^ */
@@ -284,8 +284,8 @@ void regulator_run() {
             for (tick_index = 0; tick_index < tick_count; tick_index += 1) {
                 tick_peak_data[tick_peak_index].peak -= extra_samples;
             }
-            samples_too_fast = 0;
-            samples_too_slow = 0;
+            samples_too_early = 0;
+            samples_too_late = 0;
 
             /* to work on the next tick */
             must_analyze = 1;
