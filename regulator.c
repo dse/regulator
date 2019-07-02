@@ -94,6 +94,10 @@ void regulator_run() {
     size_t ticks_in_sample_data_block = (TICKS_PER_GROUP * 2 + 2);
     size_t samples_in_sample_data_block = ticks_in_sample_data_block * samples_per_tick;
     int16_t *sample_data_block = (int16_t *)malloc(sizeof(int16_t) * samples_in_sample_data_block);
+    if (!sample_data_block) {
+        perror(progname);
+        exit(1);
+    }
 
     if (debug >= 2) {
         printf("%d ticks in sample data block\n", (int)ticks_in_sample_data_block);
@@ -109,6 +113,10 @@ void regulator_run() {
     size_t tick_shift_by_half_count = 0;
     size_t good_tick_count = 0;
     tick_peak_t *tick_peak_data = (tick_peak_t *)malloc(sizeof(tick_peak_t) * ticks_per_hour);
+    if (!tick_peak_data) {
+        perror(progname);
+        exit(1);
+    }
     size_t tick_peak_index = 0;
 
     for (; tick_count < TICKS_PER_GROUP; tick_count += 1) {
@@ -719,6 +727,10 @@ float compute_kendall_thiel_best_fit(tick_peak_t *data, size_t ticks) {
     }
     size_t nslopes = ((ticks * (ticks - 1)) / 2);
     float *slopes = (float *)malloc(sizeof(float) * nslopes);
+    if (!slopes) {
+        perror(progname);
+        exit(1);
+    }
     size_t i;
     size_t j;
     size_t si = 0;
