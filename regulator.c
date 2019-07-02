@@ -430,13 +430,6 @@ void regulator_options(int *argcp, char * const **argvp) {
         {
          /* name,            has_arg,           flag, val */
          { "help",           no_argument,       NULL, 'h' },
-         { "44100",          no_argument,       NULL, 0   },
-         { "48000",          no_argument,       NULL, 0   },
-         { "96000",          no_argument,       NULL, 0   },
-         { "192000",         no_argument,       NULL, 0   },
-         { "alaw",           no_argument,       NULL, 0   },
-         { "mulaw",          no_argument,       NULL, 0   },
-         { "pcm",            no_argument,       NULL, 0   },
          { "file",           required_argument, NULL, 'f' },
          { "ticks-per-hour", required_argument, NULL, 0   },
          { "debug",          no_argument,       NULL, 'D' },
@@ -455,21 +448,7 @@ void regulator_options(int *argcp, char * const **argvp) {
             break;
         case 0:
             longoptname = long_options[option_index].name;
-            if (!strcmp(longoptname, "44100")) {
-                pa_ss.rate = 44100;
-            } else if (!strcmp(longoptname, "48000")) {
-                pa_ss.rate = 48000;
-            } else if (!strcmp(longoptname, "96000")) {
-                pa_ss.rate = 96000;
-            } else if (!strcmp(longoptname, "192000")) {
-                pa_ss.rate = 192000;
-            } else if (!strcmp(longoptname, "alaw")) {
-                pa_ss.format = PA_SAMPLE_ALAW;
-            } else if (!strcmp(longoptname, "mulaw")) {
-                pa_ss.format = PA_SAMPLE_ULAW;
-            } else if (!strcmp(longoptname, "pcm")) {
-                pa_ss.format = PA_SAMPLE_S16LE;
-            } else if (!strcmp(longoptname, "ticks-per-hour")) {
+            if (!strcmp(longoptname, "ticks-per-hour")) {
                 errno = 0;
                 ticks_per_hour = (int)strtol(optarg, (char **)NULL, 10);
                 if (ticks_per_hour < 1) {
