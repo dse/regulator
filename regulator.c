@@ -25,15 +25,24 @@
 char *progname;
 
 int main(int argc, char * const argv[]) {
-    char *p;
-    progname = argv[0];
-    if ((p = strrchr(progname, '/')) && *(p + 1)) {
-        progname = p + 1;
-    } else if ((p = strrchr(progname, '\\')) && *(p + 1)) {
-        progname = p + 1;
-    }
+    set_progname(argc, argv);
     regulator_options(&argc, &argv);
     regulator_run();
+}
+
+char* set_progname(int argc, char* const argv[]) {
+    char* p;
+    if (argc < 1) {
+        progname = "regulator";
+    } else {
+        progname = argv[0];
+        if ((p = strrchr(progname, '/')) && *(p + 1)) {
+            progname = p + 1;
+        } else if ((p = strrchr(progname, '\\')) && *(p + 1)) {
+            progname = p + 1;
+        }
+    }
+    return progname;
 }
 
 int debug = 0;
