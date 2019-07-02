@@ -307,7 +307,7 @@ void regulator_run() {
     }
 
     /* in samples per tick */
-    float drift = compute_kendall_thiel_best_fit(tick_peak_data, tick_peak_index);
+    float drift = kt_best_fit(tick_peak_data, tick_peak_index);
 
     /* in seconds per tick */
     drift = -drift / frames_per_second;
@@ -472,7 +472,10 @@ void regulator_options(int *argcp, char * const **argvp) {
     optind = 0;
 }
 
-float compute_kendall_thiel_best_fit(tick_peak_t *data, size_t ticks) {
+/**
+ * Kendall-Thiel best fit.  Mainly so outliers affect the results less.
+ */
+float kt_best_fit(tick_peak_t *data, size_t ticks) {
     if (ticks < 2) {
         return 0;
     }
@@ -508,26 +511,14 @@ float compute_kendall_thiel_best_fit(tick_peak_t *data, size_t ticks) {
  * magnitude, to find peaks.
  */
 int sample_sort(const regulator_sample_t *a, const regulator_sample_t *b) {
-    if (a->sample < b->sample) {
-        return 1;
-    }
-    if (a->sample > b->sample) {
-        return -1;
-    }
-    return 0;
+    return (a->sample < b->sample) ? 1 : (a->sample > b->sample) ? -1 : 0;
 }
 
 /**
  * Helper function for peak finding.
  */
 int size_t_sort(const size_t *a, const size_t *b) {
-    if (*a < *b) {
-        return -1;
-    }
-    if (*a > *b) {
-        return 1;
-    }
-    return 0;
+    return (*a < *b) ? -1 : (*a > *b) ? 1 : 0;
 }
 
 /**
