@@ -45,7 +45,7 @@ static size_t bytes_per_frame;      /* e.g., 4 for 16-bit stereo */
 static regulator_sample_t *sample_sort_buffer = NULL;
 
 static int this_tick_is_good = 0;
-static size_t this_tick_peak = SIZE_T_MAX;
+static size_t this_tick_peak = SIZE_MAX;
 static size_t this_tick_shift_by_half = 0;
 
 /* after options are set */
@@ -394,7 +394,7 @@ void regulator_analyze_tick(int16_t *buffer) {
     if (this_tick_is_good) {
         this_tick_peak = (highest_index + lowest_index) / 2;
     } else {
-        this_tick_peak = SIZE_T_MAX;
+        this_tick_peak = SIZE_MAX;
     }
 }
 
