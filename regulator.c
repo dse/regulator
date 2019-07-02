@@ -88,7 +88,6 @@ void regulator_run() {
         printf("%d bytes per frame\n", (int)bytes_per_frame);
     }
 
-    size_t samples;
     size_t tick_count = 0;
     size_t tick_index;
     size_t ticks_in_sample_data_block = (TICKS_PER_GROUP * 2 + 2);
@@ -120,7 +119,7 @@ void regulator_run() {
     size_t tick_peak_index = 0;
 
     for (; tick_count < TICKS_PER_GROUP; tick_count += 1) {
-        if ((samples = regulator_read(append_pointer, samples_per_tick)) < samples_per_tick) {
+        if (regulator_read(append_pointer, samples_per_tick) < samples_per_tick) {
             fprintf(stderr, "%s: not enough data\n", progname);
             exit(1);
         }
@@ -164,7 +163,7 @@ void regulator_run() {
             printf("too many ticks at beginning or end of windows; shifting and trying again\n");
         }
         tried_shifting_by_half = 1;
-        if ((samples = regulator_read(append_pointer, samples_per_tick / 2)) < (samples_per_tick / 2)) {
+        if (regulator_read(append_pointer, samples_per_tick / 2) < (samples_per_tick / 2)) {
             fprintf(stderr, "%s: not enough data\n", progname);
             exit(1);
         }
@@ -242,7 +241,7 @@ void regulator_run() {
             /*         V-- analyze */
             /* [  ^                ]  ^      */
             /*         [                   ] */
-            if ((samples = regulator_read(append_pointer, extra_samples)) < extra_samples) {
+            if (regulator_read(append_pointer, extra_samples) < extra_samples) {
                 /* no more data */
                 break;
             }
@@ -269,7 +268,7 @@ void regulator_run() {
             /*                                 V-- analyze */
             /* [                ^  ]                ^ */
             /*             [                   ]      */
-            if ((samples = regulator_read(append_pointer, extra_samples)) < extra_samples) {
+            if (regulator_read(append_pointer, extra_samples) < extra_samples) {
                 /* no more data */
                 break;
             }
@@ -294,7 +293,7 @@ void regulator_run() {
         }
 
         if (must_do_full_read) {
-            if ((samples = regulator_read(append_pointer, samples_per_tick)) < samples_per_tick) {
+            if (regulator_read(append_pointer, samples_per_tick) < samples_per_tick) {
                 /* no more data */
                 break;
             }
