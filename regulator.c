@@ -344,6 +344,10 @@ void regulator_run() {
     }
 }
 
+/**
+ * For sampling magnitude-index sample pairs in decreasing order of
+ * magnitude.
+ */
 int sample_sort(const regulator_sample_t *a,
                 const regulator_sample_t *b) {
     if (a->sample < b->sample) {
