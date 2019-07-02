@@ -8,7 +8,6 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-
 #include <sndfile.h>
 
 #include "regulator.h"
@@ -28,7 +27,7 @@ static int* sf_sample_buffer;
 
 #define CHANNEL_NUMBER 0
 
-void regulator_sndfile_open() {
+void regulator_sndfile_open(struct regulator_t* rp) {
     sf = sf_open(audio_filename, SFM_READ, &sfinfo);
     if (!sf) {
         fprintf(stderr, "%s: unable to open %s: %s\n", progname, audio_filename, sf_strerror(NULL));
@@ -60,7 +59,7 @@ void regulator_sndfile_open() {
     }
 }
 
-size_t regulator_sndfile_read(int16_t* buffer, size_t samples) {
+size_t regulator_sndfile_read(struct regulator_t* rp, int16_t* buffer, size_t samples) {
     sf_count_t sf_frames;
     sf_count_t i;
     int sample;                 /* int, as read from sf_readf_int */

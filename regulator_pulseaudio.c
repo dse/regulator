@@ -30,7 +30,7 @@ static pa_buffer_attr pa_ba = { .maxlength = 44100,
                                 .tlength   = 0,
                                 .fragsize  = 44100 };
 
-void regulator_pulseaudio_open() {
+void regulator_pulseaudio_open(struct regulator_t* rp) {
     /* sanity check */
     if (!pa_sample_spec_valid(&pa_ss)) {
         fprintf(stderr, "%s: invalid sample specification\n", progname);
@@ -79,7 +79,7 @@ void regulator_pulseaudio_open() {
     }
 }
 
-size_t regulator_pulseaudio_read(int16_t* buffer, size_t samples) {
+size_t regulator_pulseaudio_read(struct regulator_t* rp, int16_t* buffer, size_t samples) {
     size_t i;
     int16_t* samplep;
 

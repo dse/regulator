@@ -25,12 +25,13 @@
 char* progname;
 
 int main(int argc, char* const argv[]) {
-    set_progname(argc, argv);
-    regulator_options(&argc, &argv);
-    regulator_run();
+    regulator_t r;
+    regulator_set_progname(&r, argc, argv);
+    regulator_options(&r, &argc, &argv);
+    regulator_run(&r);
 }
 
-char* set_progname(int argc, char* const argv[]) {
+char* regulator_set_progname(struct regulator_t* rp, int argc, char* const argv[]) {
     char* p;
     if (argc < 1) {
         progname = "regulator";
@@ -61,11 +62,11 @@ static size_t this_tick_peak = SIZE_MAX;
 static int this_tick_shift_by_half = 0;
 
 /* after options are set */
-void regulator_run() {
+void regulator_run(struct regulator_t* rp) {
     if (audio_filename == NULL) {
-        regulator_pulseaudio_open();
+        regulator_pulseaudio_open(rp);
     } else {
-        regulator_sndfile_open();
+        regulator_sndfile_open(rp);
     }
 
     if (debug >= 2) {
@@ -108,7 +109,7 @@ void regulator_run() {
     size_t tick_peak_index = 0;
 
     for (; tick_count < TICKS_PER_GROUP; tick_count += 1) {
-        if (regulator_read(append_pointer, samples_per_tick) < samples_per_tick) {
+        if (regulator_read(rp, append_pointer, samples_per_tick) < samples_per_tick) {
             fprintf(stderr, "%s: not enough data\n", progname);
             exit(1);
         }
@@ -118,7 +119,7 @@ void regulator_run() {
 
  reanalyze:
     for (tick_index = 0; tick_index < tick_count; tick_index += 1) {
-        regulator_analyze_tick(analyze_pointer);
+        regulator_analyze_tick(rp, analyze_pointer);
         analyze_pointer += samples_per_tick;
         analyze_index   += samples_per_tick;
         if (this_tick_shift_by_half) {
@@ -153,7 +154,7 @@ void regulator_run() {
                    "shifting and trying again\n");
         }
         tried_shifting_by_half = 1;
-        if (regulator_read(append_pointer, samples_per_tick / 2) < (samples_per_tick / 2)) {
+        if (regulator_read(rp, append_pointer, samples_per_tick / 2) < (samples_per_tick / 2)) {
             fprintf(stderr, "%s: not enough data\n", progname);
             exit(1);
         }
@@ -231,7 +232,7 @@ void regulator_run() {
             /*         V-- analyze */
             /* [  ^                ]  ^      */
             /*         [                   ] */
-            if (regulator_read(append_pointer, extra_samples) < extra_samples) {
+            if (regulator_read(rp, append_pointer, extra_samples) < extra_samples) {
                 /* no more data */
                 break;
             }
@@ -258,7 +259,7 @@ void regulator_run() {
             /*                                 V-- analyze */
             /* [                ^  ]                ^ */
             /*             [                   ]      */
-            if (regulator_read(append_pointer, extra_samples) < extra_samples) {
+            if (regulator_read(rp, append_pointer, extra_samples) < extra_samples) {
                 /* no more data */
                 break;
             }
@@ -283,7 +284,7 @@ void regulator_run() {
         }
 
         if (must_do_full_read) {
-            if (regulator_read(append_pointer, samples_per_tick) < samples_per_tick) {
+            if (regulator_read(rp, append_pointer, samples_per_tick) < samples_per_tick) {
                 /* no more data */
                 break;
             }
@@ -292,7 +293,7 @@ void regulator_run() {
         }
 
         if (must_analyze) {
-            regulator_analyze_tick(analyze_pointer);
+            regulator_analyze_tick(rp, analyze_pointer);
             analyze_pointer += samples_per_tick;
             analyze_index   += samples_per_tick;
 
@@ -341,18 +342,18 @@ void regulator_run() {
     }
 }
 
-size_t regulator_read(int16_t* buffer, size_t samples) {
+size_t regulator_read(struct regulator_t* rp, int16_t* buffer, size_t samples) {
     size_t samples_read;
     if (audio_filename == NULL) {
-        samples_read = regulator_pulseaudio_read(buffer, samples);
+        samples_read = regulator_pulseaudio_read(rp, buffer, samples);
     } else {
-        samples_read = regulator_sndfile_read(buffer, samples);
+        samples_read = regulator_sndfile_read(rp, buffer, samples);
     }
     return samples_read;
 }
 
 /* mainly to find the peak */
-void regulator_analyze_tick(int16_t* buffer) {
+void regulator_analyze_tick(struct regulator_t* rp, int16_t* buffer) {
     size_t i;
     size_t peak_sample_indexes[PEAK_SAMPLES];
     size_t index;
@@ -397,7 +398,7 @@ void regulator_analyze_tick(int16_t* buffer) {
 }
 
 /* after options are set */
-void regulator_usage() {
+void regulator_usage(struct regulator_t* rp) {
     puts("usage: regulator [<option> ...] [<command>]");
     puts("commands:");
     puts("    test");
@@ -409,7 +410,7 @@ void regulator_usage() {
     puts("        --ticks-per-hour=<ticks>    specify ticks per hour");
 }
 
-void regulator_options(int* argcp, char* const** argvp) {
+void regulator_options(struct regulator_t* rp, int* argcp, char* const** argvp) {
     int c;
 
     char optstring[] = "hf:D";
@@ -464,7 +465,7 @@ void regulator_options(int* argcp, char* const** argvp) {
             }
             break;
         case 'h':
-            regulator_usage();
+            regulator_usage(rp);
             exit(0);
         case '?':
             fprintf(stderr, "%s: unknown or ambiguous option: %s\n", progname, "?"); /* FIXME */

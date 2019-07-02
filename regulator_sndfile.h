@@ -3,15 +3,9 @@
 
 #include <unistd.h>
 
-#include <sndfile.h>
+#include "regulator_types.h"
 
-typedef struct regulator_sndfile_t {
-    SNDFILE* sf;
-    SF_INFO sfinfo;
-    int* sf_sample_buffer;
-} regulator_sndfile_t;
-
-void regulator_sndfile_open();
-size_t regulator_sndfile_read(int16_t* ptr, size_t samples);
+void regulator_sndfile_open(struct regulator_t* rp);
+size_t regulator_sndfile_read(struct regulator_t* rp, int16_t* ptr, size_t samples);
 
 #endif  /* REGULATOR_SNDFILE_H */
