@@ -3,11 +3,12 @@
 
 #include <unistd.h>
 
-#define PA_SAMPLE_SPEC_BUFSIZE 1024
-#define TICKS_PER_GROUP 20
-#define PEAK_SAMPLES 10
-#define PEAK_WAY_OFF_THRESHOLD_1 1
-#define PEAK_WAY_OFF_THRESHOLD_2 1
+#define PA_SAMPLE_SPEC_BUFSIZE   1024
+#define TICKS_PER_GROUP          20
+#define PEAK_SAMPLES             20
+#define PEAK_WAY_OFF_THRESHOLD_1 (PEAK_SAMPLES * 5 / 100)
+#define PEAK_WAY_OFF_THRESHOLD_2 (PEAK_SAMPLES * 5 / 100)
+#define SHIFT_POINT_PERCENT      10
 
 typedef struct regulator_sample_t {
     int16_t sample;
