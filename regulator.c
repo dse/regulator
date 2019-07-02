@@ -39,7 +39,7 @@ int main(int argc, char * const argv[]) {
     regulator_run();
 }
 
-int debug = 0;
+static int debug = 0;
 static char *audio_filename = NULL;
 static size_t ticks_per_hour = 3600; /* how to guess? */
 static size_t samples_per_tick = 0;
@@ -359,16 +359,16 @@ int sample_sort(const regulator_sample_t *a,
     return 0;
 }
 
-SNDFILE* sf;
-SF_INFO sfinfo = { .frames     = 0,
-                   .samplerate = 0,
-                   .channels   = 0,
-                   .format     = 0, /* set to 0 before reading */
-                   .sections   = 0,
-                   .seekable   = 0 };
-int *sf_sample_buffer;
+static SNDFILE* sf;
+static SF_INFO sfinfo = { .frames     = 0,
+                          .samplerate = 0,
+                          .channels   = 0,
+                          .format     = 0, /* set to 0 before reading */
+                          .sections   = 0,
+                          .seekable   = 0 };
+static int *sf_sample_buffer;
+static sf_count_t sf_frames;
 
-sf_count_t sf_frames;
 #define sf_num_frames sample_buffer_frames
 #define sf_num_items  sample_buffer_samples
 
