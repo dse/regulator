@@ -12,7 +12,7 @@ all: $(EXECUTABLES)
 regulator: regulator.o regulator_sndfile.o regulator_pulseaudio.o
 
 clean:
-	rm $(OBJECTS) $(EXECUTABLES) || true
+	rm $(OBJECTS) $(EXECUTABLES) >/dev/null 2>/dev/null || true
 
 test: $(EXECUTABLES)
 	@./regulator --ticks-per-hour=12000 --file=sample-data/westclox-facedown.wav
