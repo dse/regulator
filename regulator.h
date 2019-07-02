@@ -46,6 +46,7 @@ typedef struct regulator_t {
     regulator_implementation_t implementation;
 } regulator_t;
 
+char* set_progname(int argc, char* const argv[]);
 void regulator_run();
 size_t regulator_read(int16_t *ptr, size_t samples);
 void regulator_analyze_tick(int16_t *ptr);
