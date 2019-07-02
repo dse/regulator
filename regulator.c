@@ -64,7 +64,6 @@ static int16_t pa_sample_max;
 static int16_t pa_sample_min;
 static int16_t pa_sample_avg;
 
-static pa_usec_t pa_latency;
 static pa_buffer_attr pa_ba = { .maxlength = 44100,
                                 .minreq    = 0,
                                 .prebuf    = 0,
@@ -537,11 +536,6 @@ void regulator_pulseaudio_open() {
                          &pa_error);       /* error code */
     if (!pa_s) {
         fprintf(stderr, "%s: pa_simple_new() failed: %s\n", progname, pa_strerror(pa_error));
-        exit(1);
-    }
-
-    if ((pa_latency = pa_simple_get_latency(pa_s, &pa_error)) == (pa_usec_t)-1) {
-        fprintf(stderr, "%s: pa_simple_get_latency() failed: %s\n", progname, pa_strerror(pa_error));
         exit(1);
     }
 
