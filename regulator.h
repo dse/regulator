@@ -35,15 +35,5 @@ extern int16_t _endian_test;
 #define IS_LITTLE_ENDIAN (*((char*)&_endian_test))
 
 extern char* progname;
-extern int debug;
-extern char* audio_filename;
-extern size_t ticks_per_hour; /* how to guess? */
-extern size_t samples_per_tick;
-extern size_t sample_buffer_frames;  /* e.g., 44100 */
-extern size_t sample_buffer_samples; /* e.g., 88200 if stereo */
-extern size_t sample_buffer_bytes;   /* e.g., 176400 if 16-bit */
-extern size_t bytes_per_frame;      /* e.g., 4 for 16-bit stereo */
-extern size_t frames_per_second;
-extern regulator_sample_t* sample_sort_buffer;
 
 #endif  /* REGULATOR_H */
