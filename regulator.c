@@ -49,7 +49,7 @@ regulator_sample_t *sample_sort_buffer = NULL;
 
 static int this_tick_is_good = 0;
 static size_t this_tick_peak = SIZE_MAX;
-static size_t this_tick_shift_by_half = 0;
+static int this_tick_shift_by_half = 0;
 
 /* after options are set */
 void regulator_run() {
