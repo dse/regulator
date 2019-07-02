@@ -43,7 +43,8 @@ size_t samples_per_tick = 0;
 size_t sample_buffer_frames;  /* e.g., 44100 */
 size_t sample_buffer_samples; /* e.g., 88200 if stereo */
 size_t sample_buffer_bytes;   /* e.g., 176400 if 16-bit */
-size_t bytes_per_frame;      /* e.g., 4 for 16-bit stereo */
+size_t bytes_per_frame;       /* e.g., 4 for 16-bit stereo */
+size_t frames_per_second;     /* e.g., 44100 */
 regulator_sample_t *sample_sort_buffer = NULL;
 
 static int this_tick_is_good = 0;
@@ -309,7 +310,7 @@ void regulator_run() {
     float drift = compute_kendall_thiel_best_fit(tick_peak_data, tick_peak_index);
 
     /* in seconds per tick */
-    drift = -drift / 44100;
+    drift = -drift / frames_per_second;
 
     /* in seconds per hour */
     drift = drift * ticks_per_hour;

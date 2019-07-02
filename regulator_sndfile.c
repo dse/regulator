@@ -45,7 +45,8 @@ void regulator_sndfile_open() {
     sample_buffer_frames  = samples_per_tick;
     sample_buffer_samples = sample_buffer_frames * sfinfo.channels;
     sample_buffer_bytes   = sample_buffer_samples * sizeof(int);
-    bytes_per_frame      = sfinfo.channels * sizeof(int);
+    bytes_per_frame       = sfinfo.channels * sizeof(int);
+    frames_per_second     = sfinfo.samplerate;
 
     if (!(sf_sample_buffer = (int *)malloc(sample_buffer_bytes))) {
         perror(progname);

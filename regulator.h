@@ -52,6 +52,7 @@ extern size_t sample_buffer_frames;  /* e.g., 44100 */
 extern size_t sample_buffer_samples; /* e.g., 88200 if stereo */
 extern size_t sample_buffer_bytes;   /* e.g., 176400 if 16-bit */
 extern size_t bytes_per_frame;      /* e.g., 4 for 16-bit stereo */
+extern size_t frames_per_second;
 extern regulator_sample_t *sample_sort_buffer;
 
 #endif  /* REGULATOR_H */

@@ -51,7 +51,8 @@ void regulator_pulseaudio_open() {
     sample_buffer_frames  = samples_per_tick;
     sample_buffer_samples = sample_buffer_frames * pa_ss.channels;
     sample_buffer_bytes   = pa_bytes_per_second(&pa_ss) * 3600 / ticks_per_hour;
-    bytes_per_frame      = pa_ss.channels * sizeof(int16_t);
+    bytes_per_frame       = pa_ss.channels * sizeof(int16_t);
+    frames_per_second     = pa_ss.rate;
 
     pa_ba.maxlength = sample_buffer_bytes;
     pa_ba.fragsize  = sample_buffer_bytes;
