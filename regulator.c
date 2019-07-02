@@ -331,21 +331,6 @@ void regulator_run() {
     }
 }
 
-/**
- * For sampling magnitude-index sample pairs in decreasing order of
- * magnitude.
- */
-int sample_sort(const regulator_sample_t *a,
-                const regulator_sample_t *b) {
-    if (a->sample < b->sample) {
-        return 1;
-    }
-    if (a->sample > b->sample) {
-        return -1;
-    }
-    return 0;
-}
-
 size_t regulator_read(int16_t *buffer, size_t samples) {
     size_t samples_read;
     if (audio_filename == NULL) {
@@ -399,16 +384,6 @@ void regulator_analyze_tick(int16_t *buffer) {
     } else {
         this_tick_peak = SIZE_MAX;
     }
-}
-
-int size_t_sort(const size_t *a, const size_t *b) {
-    if (*a < *b) {
-        return -1;
-    }
-    if (*a > *b) {
-        return 1;
-    }
-    return 0;
 }
 
 /* after options are set */
@@ -528,6 +503,36 @@ float compute_kendall_thiel_best_fit(tick_peak_t *data, size_t ticks) {
     return result;
 }
 
+/**
+ * For sampling magnitude-index sample pairs in decreasing order of
+ * magnitude, to find peaks.
+ */
+int sample_sort(const regulator_sample_t *a, const regulator_sample_t *b) {
+    if (a->sample < b->sample) {
+        return 1;
+    }
+    if (a->sample > b->sample) {
+        return -1;
+    }
+    return 0;
+}
+
+/**
+ * Helper function for peak finding.
+ */
+int size_t_sort(const size_t *a, const size_t *b) {
+    if (*a < *b) {
+        return -1;
+    }
+    if (*a > *b) {
+        return 1;
+    }
+    return 0;
+}
+
+/**
+ * Helper function for best fit.
+ */
 int float_sort(const float *a, const float *b) {
     return (*a < *b) ? -1 : (*a > *b) ? 1 : 0;
 }
