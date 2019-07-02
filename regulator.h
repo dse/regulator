@@ -3,7 +3,6 @@
 
 #include <unistd.h>
 
-#define PA_SAMPLE_SPEC_BUFSIZE   1024
 #define TICKS_PER_GROUP          20
 #define PEAK_SAMPLES             20
 #define PEAK_WAY_OFF_THRESHOLD_1 (PEAK_SAMPLES * 5 / 100)
