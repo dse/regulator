@@ -51,6 +51,18 @@ typedef struct regulator_t {
     size_t frames_per_second;     /* e.g.,             44100 */
     regulator_sample_t* sample_sort_buffer; /* for finding peaks */
 
+    size_t   tick_count;
+    size_t   good_tick_count;
+    int16_t* buffer;
+    int16_t* buffer_end;
+    int16_t* buffer_append;
+    int16_t* buffer_analyze;
+    size_t   buffer_ticks;
+    size_t   buffer_samples;
+
+    tick_peak_t *tick_peak_data;
+    size_t tick_peak_count;
+
     int this_tick_is_good;
     size_t this_tick_peak;
     int this_tick_shift_by_half;
