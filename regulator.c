@@ -57,26 +57,27 @@ void regulator_read_first_batch_of_ticks(struct regulator_t* rp) {
 }
 
 void regulator_analyze_first_batch_of_ticks(struct regulator_t* rp) {
-    for (size_t tick_index = 0; tick_index < rp->tick_count; tick_index += 1) {
+    for (; rp->buffer_analyze <= (rp->buffer_append - rp->samples_per_tick);
+         rp->tick_count += 1) {
         regulator_analyze_tick(rp);
 
         if (rp->this_tick_peak_at_boundary) {
             rp->boundary_peak_count += 1;
         } else if (rp->this_tick_has_well_defined_peak) {
-            rp->tick_peak_data[rp->tick_peak_count].index = tick_index;
+            rp->tick_peak_data[rp->tick_peak_count].index = rp->tick_count;
             rp->tick_peak_data[rp->tick_peak_count].peak  = rp->this_tick_peak;
             if (rp->debug >= 2) {
                 printf("data point # %6d: %6d at tick # %6d\n",
                        (int)rp->tick_peak_count,
                        (int)rp->this_tick_peak,
-                       (int)tick_index);
+                       (int)rp->tick_count);
             }
             rp->tick_peak_count += 1;
             rp->good_tick_count += 1;
         } else {
             if (rp->debug >= 2) {
                 printf("data not good enough at tick # %6d\n",
-                       (int)tick_index);
+                       (int)rp->tick_count);
             }
         }
     }
@@ -99,7 +100,7 @@ void regulator_run(struct regulator_t* rp) {
         printf("%d bytes per frame\n", (int)rp->bytes_per_frame);
     }
 
-    rp->buffer_ticks = TICKS_PER_GROUP;
+    rp->buffer_ticks = TICKS_PER_GROUP + 1;
     rp->buffer_samples = rp->buffer_ticks * rp->samples_per_tick;
     rp->buffer = (int16_t*)malloc(sizeof(int16_t) * rp->buffer_samples);
     if (!rp->buffer) {
@@ -134,26 +135,20 @@ void regulator_run(struct regulator_t* rp) {
             printf("too many ticks at beginning or end of windows; "
                    "shifting and trying again\n");
         }
-        regulator_buffer_shift_left_by(rp, rp->samples_per_tick / 2);
-        if (rp->debug >= 2) {
-            printf("moo\n");
-        }
         if (!regulator_read(rp, rp->samples_per_tick / 2)) {
             fprintf(stderr, "%s: not enough data\n", rp->progname);
             exit(1);
         }
+        rp->buffer_analyze += rp->samples_per_tick / 2;
 
         /* be kind, rewind */
-        // regulator_buffer_rewind_max_ticks(rp);
-        if (regulator_buffer_can_rewind_by(rp, TICKS_PER_GROUP * rp->samples_per_tick)) {
-            regulator_buffer_can_rewind_by(rp, (TICKS_PER_GROUP) * rp->samples_per_tick);
-        } else {
-            regulator_buffer_can_rewind_by(rp, (TICKS_PER_GROUP - 1) * rp->samples_per_tick);
-        }
+        regulator_buffer_rewind_max_ticks(rp);
 
         rp->tick_count = 0;
         rp->good_tick_count = 0;
         rp->tick_peak_count = 0;
+
+
         rp->boundary_peak_count = 0;
 
         regulator_analyze_first_batch_of_ticks(rp);
@@ -409,6 +404,11 @@ void regulator_buffer_rewind_by(struct regulator_t* rp, size_t samples) {
     if (!samples) {
         return;
     }
+    if (rp->debug >= 3) {
+        printf("    rp->buffer_analyze from %d to %d\n",
+               (int)(rp->buffer_analyze - rp->buffer),
+               (int)((rp->buffer_analyze - rp->buffer) - samples));
+    }
     if (rp->buffer_analyze - samples < rp->buffer) {
         fprintf(stderr, "%s: UNEXPECTED ERROR 5\n", rp->progname);
         exit(1);
@@ -424,7 +424,7 @@ size_t regulator_read(struct regulator_t* rp, size_t samples) {
     if (rp->buffer_end - samples < rp->buffer_append) {
         /* to have enough space to read the next batch of data... */
         if (rp->debug >= 2) {
-            fprintf(stderr, "%s: not enough to read %d samples\n", rp->progname, (int)samples);
+            printf("not enough to read %d samples\n", (int)samples);
         }
         regulator_buffer_shift_left_by(rp, samples - (rp->buffer_end - rp->buffer_append));
     }
