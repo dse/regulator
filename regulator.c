@@ -163,8 +163,7 @@ void regulator_run(struct regulator_t* rp) {
                        (int)(rp->tick_count - 1),
                        (int)(rp->samples_per_tick - extra_samples));
             }
-            for (size_t tick_index = 0; tick_index < rp->tick_count;
-                 tick_index += 1) {
+            for (size_t i = 0; i < rp->tick_count; i += 1) {
                 rp->tick_peak_data[rp->tick_peak_count].peak +=
                     rp->samples_per_tick - extra_samples;
             }
@@ -193,8 +192,7 @@ void regulator_run(struct regulator_t* rp) {
                        (int)(rp->tick_count - 1),
                        (int)(-extra_samples));
             }
-            for (size_t tick_index = 0; tick_index < rp->tick_count;
-                 tick_index += 1) {
+            for (size_t i = 0; i < rp->tick_count; i += 1) {
                 rp->tick_peak_data[rp->tick_peak_count].peak -= extra_samples;
             }
             early_peak_count = 0;
@@ -409,13 +407,12 @@ size_t regulator_read(struct regulator_t* rp, size_t samples) {
 
 /* mainly to find the peak */
 void regulator_analyze_tick(struct regulator_t* rp) {
-    size_t i;
     size_t peak_sample_indexes[PEAK_SAMPLES];
     size_t index;
     size_t low_indexes = 0;
     size_t high_indexes = 0;
 
-    for (i = 0; i < rp->samples_per_tick; i += 1) {
+    for (size_t i = 0; i < rp->samples_per_tick; i += 1) {
         rp->sample_sort_buffer[i].sample = rp->buffer_analyze[i];
         rp->sample_sort_buffer[i].index = i;
     }
@@ -427,7 +424,7 @@ void regulator_analyze_tick(struct regulator_t* rp) {
           sizeof(regulator_sample_t),
           (qsort_function)sample_sort);
 
-    for (i = 0; i < PEAK_SAMPLES; i += 1) {
+    for (size_t i = 0; i < PEAK_SAMPLES; i += 1) {
         index = rp->sample_sort_buffer[i].index;
         peak_sample_indexes[i] = index;
         if (index <
@@ -508,23 +505,24 @@ float kt_best_fit(tick_peak_t* data, size_t ticks) {
         perror(progname);
         exit(1);
     }
-    size_t i;
-    size_t j;
     size_t si = 0;
-    for (i = 0; i < ticks - 1; i += 1) {
-        for (j = i + 1; j < ticks; j += 1) {
+    for (size_t i = 0; i < ticks - 1; i += 1) {
+        for (size_t j = i + 1; j < ticks; j += 1) {
             slopes[si] = (0.0f + data[j].peak - data[i].peak) /
                 (0.0f + data[j].index - data[i].index);
             si += 1;
         }
     }
     qsort(slopes, nslopes, sizeof(float), (qsort_function)float_sort);
+
+    /* median */
     float result;
     if (nslopes % 2 == 0) {
         result = (slopes[nslopes / 2] + slopes[nslopes / 2 - 1]) / 2;
     } else {
         result = slopes[nslopes / 2];
     }
+
     free(slopes);
     return result;
 }
