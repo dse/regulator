@@ -1,6 +1,9 @@
 LIBRARIES = libpulse-simple sndfile
 
-CFLAGS  += -g -Wall -Wextra $(shell pkg-config --cflags $(LIBRARIES)) $(DEFS)
+CFLAGS  += -g -Wall -Wextra -std=c99 \
+	-Wno-missing-field-initializers \
+	-Wno-unused-parameter \
+	$(shell pkg-config --cflags $(LIBRARIES)) $(DEFS)
 LDFLAGS += $(shell pkg-config --libs $(LIBRARIES))
 
 SOURCES = $(wildcard *.c)
