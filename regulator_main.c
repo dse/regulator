@@ -13,6 +13,7 @@
 #include <errno.h>
 
 #include "regulator.h"
+#include "regulator_main.h"
 
 int main(int argc, char* const argv[]) {
     regulator_t r = {};
