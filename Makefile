@@ -1,6 +1,6 @@
 LIBRARIES = libpulse-simple sndfile
 
-CFLAGS  += -g -Wall -Wextra $(shell pkg-config --cflags $(LIBRARIES))
+CFLAGS  += -g -Wall -Wextra $(shell pkg-config --cflags $(LIBRARIES)) $(DEFS)
 LDFLAGS += $(shell pkg-config --libs $(LIBRARIES))
 
 SOURCES = $(wildcard *.c)
@@ -28,3 +28,7 @@ test-debug: $(EXECUTABLES)
 	@./regulator -D -D -D --ticks-per-hour=18000 --file=sample-data/acs1-facedown-2.wav
 	@./regulator -D -D -D --ticks-per-hour=18000 --file=sample-data/acs1-upright-1.wav
 	@./regulator -D -D -D --ticks-per-hour=18000 --file=sample-data/acs1-upright-2.wav
+test-A-B: $(EXECUTABLES)
+	@make clean && make DEFS=-DAB_TESTING_GOOD test-debug >& good.out || true
+	@make clean && make DEFS=-DAB_TESTING_BAD  test-debug >& bad.out  || true
+	diff -y good.out bad.out
