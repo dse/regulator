@@ -20,6 +20,11 @@ void regulator_usage(struct regulator_t* rp);
 void regulator_options(struct regulator_t* rp, int* argcp, char* const** argvp);
 void regulator_buffer_shift_left_by(struct regulator_t* rp, size_t samples);
 void regulator_buffer_shift_left_to_have(struct regulator_t* rp, size_t samples);
+int regulator_buffer_can_shift_left_by(struct regulator_t* rp, size_t samples);
+int regulator_buffer_can_shift_left_to_have(struct regulator_t* rp, size_t samples);
+int regulator_buffer_can_rewind_by(struct regulator_t* rp, size_t samples);
+void regulator_buffer_rewind_by(struct regulator_t* rp, size_t samples);
+void regulator_buffer_rewind_max_ticks(struct regulator_t* rp);
 
 float kt_best_fit(tick_peak_t* data, size_t ticks);
 
