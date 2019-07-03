@@ -122,7 +122,7 @@ void regulator_options(struct regulator_t* rp,
         case ':':
             fprintf(stderr,
                     "%s: option missing argument: %s\n",
-                    p->progname, "?"); /* FIXME */
+                    rp->progname, "?"); /* FIXME */
             exit(1);
         default:
             fprintf(stderr,
