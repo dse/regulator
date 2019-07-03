@@ -44,7 +44,7 @@ typedef struct regulator_t {
     char* progname;
     int debug;
     char* filename;
-    size_t ticks_per_hour;        /* e.g., 3600 * 5  = 18000 for 5 ticks/second */
+    size_t ticks_per_hour;     /* e.g., 3600 * 5  = 18000 for 5 ticks/second */
     size_t samples_per_tick;      /* e.g., 44100 / 5 = 8820 */
     size_t sample_buffer_frames;  /* e.g., 44100 / 5 = 8820 */
     size_t sample_buffer_samples; /* e.g., 8820 * 2  = 17640 for stereo */
