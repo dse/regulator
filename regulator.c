@@ -89,7 +89,8 @@ void regulator_run(struct regulator_t* rp) {
         printf("%d samples in sample data block\n", (int)rp->buffer_samples);
     }
 
-    rp->tick_peak_data = (tick_peak_t*)malloc(sizeof(tick_peak_t) * rp->ticks_per_hour);
+    rp->tick_peak_data =
+        (tick_peak_t*)malloc(sizeof(tick_peak_t) * rp->ticks_per_hour);
     if (!rp->tick_peak_data) {
         perror(rp->progname);
         exit(1);
@@ -140,10 +141,13 @@ void regulator_run(struct regulator_t* rp) {
     for (; rp->tick_count < rp->ticks_per_hour; rp->tick_count += 1) {
 
         if (rp->this_tick_has_well_defined_peak) {
-            if (rp->this_tick_peak < rp->samples_per_tick * SHIFT_POINT_PERCENT / 100) {
+            if (rp->this_tick_peak <
+                (rp->samples_per_tick * SHIFT_POINT_PERCENT / 100)) {
                 early_peak_count += 1;
                 late_peak_count = 0;
-            } else if (rp->this_tick_peak >= rp->samples_per_tick * (100 - SHIFT_POINT_PERCENT) / 100) {
+            } else if (rp->this_tick_peak >=
+                       (rp->samples_per_tick *
+                        (100 - SHIFT_POINT_PERCENT) / 100)) {
                 early_peak_count = 0;
                 late_peak_count += 1;
             } else {
@@ -160,15 +164,21 @@ void regulator_run(struct regulator_t* rp) {
 
         if (peaks_are_early) {
             /* next tick is close at hand; next read will be tick */
-            samples_needed += (extra_samples = rp->samples_per_tick * SHIFT_POINT_PERCENT * 3 / 100);
+            samples_needed +=
+                (extra_samples =
+                 rp->samples_per_tick * SHIFT_POINT_PERCENT * 3 / 100);
             if (rp->debug >= 2) {
-                printf("too fast; will read %d extra samples\n", (int)extra_samples);
+                printf("too fast; will read %d extra samples\n",
+                       (int)extra_samples);
             }
         } else if (peaks_are_late) {
             /* next tick is kinda far; next read will be blank */
-            samples_needed += (extra_samples = rp->samples_per_tick * (100 - SHIFT_POINT_PERCENT * 3) / 100);
+            samples_needed +=
+                (extra_samples =
+                 rp->samples_per_tick * (100 - SHIFT_POINT_PERCENT * 3) / 100);
             if (rp->debug >= 2) {
-                printf("too slow; will read %d extra samples\n", (int)extra_samples);
+                printf("too slow; will read %d extra samples\n",
+                       (int)extra_samples);
             }
         }
 
@@ -180,14 +190,17 @@ void regulator_run(struct regulator_t* rp) {
                 /* no more data */
                 break;
             }
-            rp->buffer_analyze = rp->buffer_analyze + extra_samples - rp->samples_per_tick;
+            rp->buffer_analyze =
+                rp->buffer_analyze + extra_samples - rp->samples_per_tick;
             if (rp->debug >= 2) {
                 printf("shifting ticks 0 through %d by %d\n",
                        (int)(rp->tick_count - 1),
                        (int)(rp->samples_per_tick - extra_samples));
             }
-            for (size_t tick_index = 0; tick_index < rp->tick_count; tick_index += 1) {
-                rp->tick_peak_data[rp->tick_peak_count].peak += rp->samples_per_tick - extra_samples;
+            for (size_t tick_index = 0; tick_index < rp->tick_count;
+                 tick_index += 1) {
+                rp->tick_peak_data[rp->tick_peak_count].peak +=
+                    rp->samples_per_tick - extra_samples;
             }
             early_peak_count = 0;
             late_peak_count = 0;
@@ -206,7 +219,8 @@ void regulator_run(struct regulator_t* rp) {
                        (int)(rp->tick_count - 1),
                        (int)(-extra_samples));
             }
-            for (size_t tick_index = 0; tick_index < rp->tick_count; tick_index += 1) {
+            for (size_t tick_index = 0; tick_index < rp->tick_count;
+                 tick_index += 1) {
                 rp->tick_peak_data[rp->tick_peak_count].peak -= extra_samples;
             }
             early_peak_count = 0;
@@ -227,8 +241,10 @@ void regulator_run(struct regulator_t* rp) {
         if (must_analyze) {
             regulator_analyze_tick(rp);
             if (rp->this_tick_has_well_defined_peak) {
-                rp->tick_peak_data[rp->tick_peak_count].index = rp->tick_count;
-                rp->tick_peak_data[rp->tick_peak_count].peak  = rp->this_tick_peak;
+                rp->tick_peak_data[rp->tick_peak_count].index =
+                    rp->tick_count;
+                rp->tick_peak_data[rp->tick_peak_count].peak =
+                    rp->this_tick_peak;
                 if (rp->debug >= 2) {
                     printf("data point # %6d: %6d at tick # %6d\n",
                            (int)rp->tick_peak_count,
@@ -261,7 +277,8 @@ void regulator_run(struct regulator_t* rp) {
     }
 
     if (rp->debug >= 1) {
-        printf("%d good data points out of %d wanted\n", (int)rp->good_tick_count, (int)rp->tick_count);
+        printf("%d good data points out of %d wanted\n",
+               (int)rp->good_tick_count, (int)rp->tick_count);
     }
 }
 
@@ -318,12 +335,15 @@ void regulator_buffer_shift_left_by(struct regulator_t* rp, size_t samples) {
     }
     memmove(/* dest */ rp->buffer,
             /* src  */ rp->buffer + samples,
-            /* n    */ sizeof(int16_t) * (rp->buffer_append - (rp->buffer + samples)));
+            /* n    */ (sizeof(int16_t) *
+                        (rp->buffer_append - (rp->buffer + samples))));
     rp->buffer_append -= samples;
     rp->buffer_analyze -= samples;
 }
 
-int regulator_buffer_can_shift_left_to_have(struct regulator_t* rp, size_t samples) {
+int regulator_buffer_can_shift_left_to_have(
+    struct regulator_t* rp, size_t samples
+) {
     if (rp->buffer_append - samples < rp->buffer) {
         return 0;
     }
@@ -337,7 +357,9 @@ int regulator_buffer_can_shift_left_to_have(struct regulator_t* rp, size_t sampl
     return 1;
 }
 
-void regulator_buffer_shift_left_to_have(struct regulator_t* rp, size_t samples) {
+void regulator_buffer_shift_left_to_have(
+    struct regulator_t* rp, size_t samples
+) {
     if (rp->buffer_append - samples < rp->buffer) {
         fprintf(stderr, "%s: UNEXPECTED ERROR 3\n", rp->progname);
         exit(1);
@@ -347,7 +369,8 @@ void regulator_buffer_shift_left_to_have(struct regulator_t* rp, size_t samples)
         return;
     }
     if (rp->debug >= 3) {
-        printf("%s: shifting left by %d to have %d\n", rp->progname, (int)move_back, (int)samples);
+        printf("%s: shifting left by %d to have %d\n",
+               rp->progname, (int)move_back, (int)samples);
         printf("    rp->buffer_append from %d to %d\n",
                (int)(rp->buffer_append - rp->buffer),
                (int)(rp->buffer_append - rp->buffer - move_back));
@@ -384,7 +407,8 @@ void regulator_buffer_rewind_max_ticks(struct regulator_t* rp) {
     if (rp->debug >= 3) {
         printf("    rp->buffer_analyze from %d to %d (%d ticks)\n",
                (int)(rp->buffer_analyze - rp->buffer),
-               (int)((rp->buffer_analyze - rp->buffer) - ticks * rp->samples_per_tick),
+               (int)((rp->buffer_analyze - rp->buffer) -
+                     ticks * rp->samples_per_tick),
                (int)ticks);
     }
     rp->buffer_analyze -= ticks * rp->samples_per_tick;
@@ -416,12 +440,16 @@ size_t regulator_read(struct regulator_t* rp, size_t samples) {
         if (rp->debug >= 2) {
             printf("not enough to read %d samples\n", (int)samples);
         }
-        regulator_buffer_shift_left_by(rp, samples - (rp->buffer_end - rp->buffer_append));
+        regulator_buffer_shift_left_by(
+            rp, samples - (rp->buffer_end - rp->buffer_append)
+        );
     }
     if (rp->filename == NULL) {
-        samples_read = regulator_pulseaudio_read(rp, rp->buffer_append, samples);
+        samples_read =
+            regulator_pulseaudio_read(rp, rp->buffer_append, samples);
     } else {
-        samples_read = regulator_sndfile_read(rp, rp->buffer_append, samples);
+        samples_read =
+            regulator_sndfile_read(rp, rp->buffer_append, samples);
     }
     rp->buffer_append += samples;
     return samples_read == samples;
@@ -442,16 +470,19 @@ void regulator_analyze_tick(struct regulator_t* rp) {
 
     rp->buffer_analyze += rp->samples_per_tick;
 
-    qsort(rp->sample_sort_buffer, rp->samples_per_tick, sizeof(regulator_sample_t),
+    qsort(rp->sample_sort_buffer,
+          rp->samples_per_tick,
+          sizeof(regulator_sample_t),
           (qsort_function)sample_sort);
 
     for (i = 0; i < PEAK_SAMPLES; i += 1) {
         index = rp->sample_sort_buffer[i].index;
         peak_sample_indexes[i] = index;
-        if (index < (rp->samples_per_tick * PEAK_WAY_OFF_THRESHOLD_1 / PEAK_SAMPLES)) {
+        if (index <
+            (rp->samples_per_tick * PEAK_WAY_OFF_THRESHOLD_1 / PEAK_SAMPLES)) {
             low_indexes += 1;
-        }
-        if ((rp->samples_per_tick - index) <= (rp->samples_per_tick * PEAK_WAY_OFF_THRESHOLD_1 / PEAK_SAMPLES)) {
+        } else if ((rp->samples_per_tick - index) <=
+            (rp->samples_per_tick * PEAK_WAY_OFF_THRESHOLD_1 / PEAK_SAMPLES)) {
             high_indexes += 1;
         }
     }
@@ -466,15 +497,21 @@ void regulator_analyze_tick(struct regulator_t* rp) {
 
     qsort(peak_sample_indexes, PEAK_SAMPLES, sizeof(size_t),
           (qsort_function)size_t_sort);
-    size_t lowest_index  = peak_sample_indexes[PEAK_WAY_OFF_THRESHOLD_2];
-    size_t highest_index = peak_sample_indexes[PEAK_SAMPLES - 1 - PEAK_WAY_OFF_THRESHOLD_2];
-    rp->this_tick_has_well_defined_peak = ((highest_index - lowest_index) < rp->samples_per_tick * PEAK_WAY_OFF_THRESHOLD_1 / PEAK_SAMPLES);
+    size_t lowest_index  =
+        peak_sample_indexes[PEAK_WAY_OFF_THRESHOLD_2];
+    size_t highest_index =
+        peak_sample_indexes[PEAK_SAMPLES - 1 - PEAK_WAY_OFF_THRESHOLD_2];
+    rp->this_tick_has_well_defined_peak =
+        ((highest_index - lowest_index) <
+         rp->samples_per_tick * PEAK_WAY_OFF_THRESHOLD_1 / PEAK_SAMPLES);
     if (rp->this_tick_has_well_defined_peak) {
         rp->this_tick_peak = (highest_index + lowest_index) / 2;
-        if (rp->this_tick_peak < rp->samples_per_tick * SHIFT_POINT_PERCENT / 100) {
+        if (rp->this_tick_peak <
+            rp->samples_per_tick * SHIFT_POINT_PERCENT / 100) {
             rp->this_tick_has_early_peak = 1;
             rp->this_tick_has_late_peak = 0;
-        } else if (rp->this_tick_peak >= rp->samples_per_tick * (100 - SHIFT_POINT_PERCENT) / 100) {
+        } else if (rp->this_tick_peak >=
+                   rp->samples_per_tick * (100 - SHIFT_POINT_PERCENT) / 100) {
             rp->this_tick_has_early_peak = 0;
             rp->this_tick_has_late_peak = 1;
         } else {
