@@ -6,9 +6,11 @@
 #include <pulse/simple.h>
 #include <pulse/error.h>
 
-typedef enum regulator_type_t { REGULATOR_TYPE_NONE,
-                                REGULATOR_TYPE_PULSEAUDIO,
-                                REGULATOR_TYPE_SNDFILE } regulator_type_t;
+typedef enum regulator_type_t {
+    REGULATOR_TYPE_NONE,
+    REGULATOR_TYPE_PULSEAUDIO,
+    REGULATOR_TYPE_SNDFILE
+} regulator_type_t;
 
 typedef struct regulator_sndfile_t {
     SNDFILE* sf;

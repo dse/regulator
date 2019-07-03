@@ -17,14 +17,20 @@
 
 void regulator_pulseaudio_open(struct regulator_t* rp) {
     rp->type = REGULATOR_TYPE_PULSEAUDIO;
-    regulator_pulseaudio_t pulseaudio = { .pa_ss = { .format   = PA_SAMPLE_S16LE,
-                                                     .rate     = 44100,
-                                                     .channels = 1 },
-                                          .pa_ba = { .maxlength = 44100,
-                                                     .minreq    = 0,
-                                                     .prebuf    = 0,
-                                                     .tlength   = 0,
-                                                     .fragsize  = 44100 } };
+    regulator_pulseaudio_t pulseaudio = {
+        .pa_ss = {
+            .format   = PA_SAMPLE_S16LE,
+            .rate     = 44100,
+            .channels = 1
+        },
+        .pa_ba = {
+            .maxlength = 44100,
+            .minreq    = 0,
+            .prebuf    = 0,
+            .tlength   = 0,
+            .fragsize  = 44100
+        }
+    };
     rp->implementation.pulseaudio = pulseaudio;
     regulator_pulseaudio_t *ip = &(rp->implementation.pulseaudio);
 

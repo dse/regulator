@@ -467,10 +467,12 @@ void regulator_analyze_tick(struct regulator_t* rp) {
     }
 
     /* heuristic */
-    rp->this_tick_peak_at_boundary = ((low_indexes >= (PEAK_WAY_OFF_THRESHOLD_2) &&
-                                       high_indexes >= (PEAK_WAY_OFF_THRESHOLD_2)) ||
-                                      low_indexes >= (PEAK_WAY_OFF_THRESHOLD_2 * 2) ||
-                                      high_indexes >= (PEAK_WAY_OFF_THRESHOLD_2 * 2));
+    rp->this_tick_peak_at_boundary = (
+        (low_indexes >= (PEAK_WAY_OFF_THRESHOLD_2) &&
+         high_indexes >= (PEAK_WAY_OFF_THRESHOLD_2)) ||
+        low_indexes >= (PEAK_WAY_OFF_THRESHOLD_2 * 2) ||
+        high_indexes >= (PEAK_WAY_OFF_THRESHOLD_2 * 2)
+    );
 
     qsort(peak_sample_indexes, PEAK_SAMPLES, sizeof(size_t),
           (qsort_function)size_t_sort);
@@ -512,15 +514,14 @@ void regulator_options(struct regulator_t* rp, int* argcp, char* const** argvp) 
 
     char optstring[] = "hf:D";
     const char* longoptname;
-    static struct option long_options[] =
-        {
-         /* name,            has_arg,           flag, val */
-         { "help",           no_argument,       NULL, 'h' },
-         { "file",           required_argument, NULL, 'f' },
-         { "ticks-per-hour", required_argument, NULL, 0   },
-         { "debug",          no_argument,       NULL, 'D' },
-         { NULL,             0,                 NULL, 0   }
-        };
+    static struct option long_options[] = {
+        /* name,            has_arg,           flag, val */
+        { "help",           no_argument,       NULL, 'h' },
+        { "file",           required_argument, NULL, 'f' },
+        { "ticks-per-hour", required_argument, NULL, 0   },
+        { "debug",          no_argument,       NULL, 'D' },
+        { NULL,             0,                 NULL, 0   }
+    };
 
     while (1) {
         /* int this_option_optind = optind ? optind : 1; */

@@ -15,7 +15,11 @@
 
 void regulator_sndfile_open(struct regulator_t* rp) {
     rp->type = REGULATOR_TYPE_SNDFILE;
-    regulator_sndfile_t sndfile = { .sfinfo = { .format = 0 } };
+    regulator_sndfile_t sndfile = {
+        .sfinfo = {
+            .format = 0
+        }
+    };
     rp->implementation.sndfile = sndfile;
 
     regulator_sndfile_t *ip = &(rp->implementation.sndfile);
