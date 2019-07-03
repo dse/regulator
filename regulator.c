@@ -261,7 +261,10 @@ void regulator_show_tick(struct regulator_t* rp) {
         /* most significant six bits of 95th percentile maximum, so 0 to 63 */
         int16_t ninety_fifth = temp[size * 95 / 100] / (1 << (sizeof(int16_t) * 8 - 7));
 
-        printf("%*s\n", (int)ninety_fifth + 1, "#");
+        for (int j = 0; j < ninety_fifth; j += 1) {
+            putchar('#');
+        }
+        putchar('\n');
     }
     free(temp);
 }
