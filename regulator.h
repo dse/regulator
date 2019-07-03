@@ -14,10 +14,12 @@
 
 char* regulator_set_progname(struct regulator_t* rp, int argc, char* const argv[]);
 void regulator_run(struct regulator_t* rp);
-size_t regulator_read(struct regulator_t* rp, int16_t* ptr, size_t samples);
-void regulator_analyze_tick(struct regulator_t* rp, int16_t* ptr);
+size_t regulator_read(struct regulator_t* rp, size_t samples);
+void regulator_analyze_tick(struct regulator_t* rp);
 void regulator_usage(struct regulator_t* rp);
 void regulator_options(struct regulator_t* rp, int* argcp, char* const** argvp);
+void regulator_buffer_shift_left_by(struct regulator_t* rp, size_t samples);
+void regulator_buffer_shift_left_to_have(struct regulator_t* rp, size_t samples);
 
 float kt_best_fit(tick_peak_t* data, size_t ticks);
 
@@ -35,5 +37,7 @@ extern int16_t _endian_test;
 #define IS_LITTLE_ENDIAN (*((char*)&_endian_test))
 
 extern char* progname;
+
+typedef int(*qsort_function)(const void*, const void*);
 
 #endif  /* REGULATOR_H */

@@ -63,9 +63,13 @@ typedef struct regulator_t {
     tick_peak_t *tick_peak_data;
     size_t tick_peak_count;
 
-    int this_tick_is_good;
+    int this_tick_has_well_defined_peak;
     size_t this_tick_peak;
-    int this_tick_shift_by_half;
+    int this_tick_peak_at_boundary;
+    int this_tick_has_early_peak;
+    int this_tick_has_late_peak;
+
+    size_t boundary_peak_count;
 
     regulator_type_t type;
     regulator_implementation_t implementation;
