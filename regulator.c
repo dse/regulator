@@ -135,13 +135,22 @@ void regulator_run(struct regulator_t* rp) {
                    "shifting and trying again\n");
         }
         regulator_buffer_shift_left_by(rp, rp->samples_per_tick / 2);
+        if (rp->debug >= 2) {
+            printf("moo\n");
+        }
         if (!regulator_read(rp, rp->samples_per_tick / 2)) {
             fprintf(stderr, "%s: not enough data\n", rp->progname);
             exit(1);
         }
 
         /* be kind, rewind */
-        rp->buffer_analyze = rp->buffer;
+        // regulator_buffer_rewind_max_ticks(rp);
+        if (regulator_buffer_can_rewind_by(rp, TICKS_PER_GROUP * rp->samples_per_tick)) {
+            regulator_buffer_can_rewind_by(rp, (TICKS_PER_GROUP) * rp->samples_per_tick);
+        } else {
+            regulator_buffer_can_rewind_by(rp, (TICKS_PER_GROUP - 1) * rp->samples_per_tick);
+        }
+
         rp->tick_count = 0;
         rp->good_tick_count = 0;
         rp->tick_peak_count = 0;
@@ -193,13 +202,6 @@ void regulator_run(struct regulator_t* rp) {
             if (rp->debug >= 2) {
                 printf("too slow; will read %d extra samples\n", (int)extra_samples);
             }
-        }
-
-        if (rp->buffer_append + samples_needed >= rp->buffer_end) {
-            if (rp->debug >= 2) {
-                printf("cleanup\n");
-            }
-            regulator_buffer_shift_left_to_have(rp, rp->samples_per_tick * TICKS_PER_GROUP);
         }
 
         int must_analyze      = 1;
@@ -295,9 +297,39 @@ void regulator_run(struct regulator_t* rp) {
     }
 }
 
-void regulator_buffer_shift_left_by(struct regulator_t* rp, size_t samples) {
+int regulator_buffer_can_shift_left_by(struct regulator_t* rp, size_t samples) {
+    if (!samples) {
+        return 1;
+    }
     if (rp->buffer_append - samples < rp->buffer) {
+        return 0;
+    }
+    if (rp->buffer_analyze - samples < rp->buffer) {
+        return 0;
+    }
+    return 1;
+}
+
+void regulator_buffer_shift_left_by(struct regulator_t* rp, size_t samples) {
+    if (!samples) {
         return;
+    }
+    if (rp->debug >= 3) {
+        printf("%s: shifting left by %d\n", rp->progname, (int)samples);
+        printf("    rp->buffer_append from %d to %d\n",
+               (int)(rp->buffer_append - rp->buffer),
+               (int)(rp->buffer_append - rp->buffer - samples));
+        printf("    rp->buffer_analyze from %d to %d\n",
+               (int)(rp->buffer_analyze - rp->buffer),
+               (int)(rp->buffer_analyze - rp->buffer - samples));
+    }
+    if (rp->buffer_append - samples < rp->buffer) {
+        fprintf(stderr, "%s: UNEXPECTED ERROR 2\n", rp->progname);
+        exit(1);
+    }
+    if (rp->buffer_analyze - samples < rp->buffer) {
+        fprintf(stderr, "%s: UNEXPECTED ERROR 2\n", rp->progname);
+        exit(1);
     }
     memmove(/* dest */ rp->buffer,
             /* src  */ rp->buffer + samples,
@@ -306,13 +338,82 @@ void regulator_buffer_shift_left_by(struct regulator_t* rp, size_t samples) {
     rp->buffer_analyze -= samples;
 }
 
+int regulator_buffer_can_shift_left_to_have(struct regulator_t* rp, size_t samples) {
+    if (rp->buffer_append - samples < rp->buffer) {
+        return 0;
+    }
+    size_t move_back = rp->buffer_append - rp->buffer - samples;
+    if (!move_back) {
+        return 1;
+    }
+    if (rp->buffer_analyze - move_back < rp->buffer) {
+        return 0;
+    }
+    return 1;
+}
+
 void regulator_buffer_shift_left_to_have(struct regulator_t* rp, size_t samples) {
+    if (rp->buffer_append - samples < rp->buffer) {
+        fprintf(stderr, "%s: UNEXPECTED ERROR 3\n", rp->progname);
+        exit(1);
+    }
+    size_t move_back = rp->buffer_append - rp->buffer - samples;
+    if (!move_back) {
+        return;
+    }
+    if (rp->debug >= 3) {
+        printf("%s: shifting left by %d to have %d\n", rp->progname, (int)move_back, (int)samples);
+        printf("    rp->buffer_append from %d to %d\n",
+               (int)(rp->buffer_append - rp->buffer),
+               (int)(rp->buffer_append - rp->buffer - move_back));
+        printf("    rp->buffer_analyze from %d to %d\n",
+               (int)(rp->buffer_analyze - rp->buffer),
+               (int)(rp->buffer_analyze - rp->buffer - move_back));
+    }
+    if (rp->buffer_analyze - move_back < rp->buffer) {
+        fprintf(stderr, "%s: UNEXPECTED ERROR 4\n", rp->progname);
+        exit(1);
+    }
     memmove(/* dest */ rp->buffer,
             /* src  */ rp->buffer_append - samples,
             /* n    */ sizeof(int16_t) * samples);
-    size_t move_back = rp->buffer_append - rp->buffer - samples;
     rp->buffer_append -= move_back;
     rp->buffer_analyze -= move_back;
+}
+
+int regulator_buffer_can_rewind_by(struct regulator_t* rp, size_t samples) {
+    if (!samples) {
+        return 1;
+    }
+    if (rp->buffer_analyze - samples < rp->buffer) {
+        return 0;
+    }
+    return 1;
+}
+
+void regulator_buffer_rewind_max_ticks(struct regulator_t* rp) {
+    int ticks = (rp->buffer_analyze - rp->buffer) / rp->samples_per_tick;
+    if (ticks < 1) {
+        return;
+    }
+    if (rp->debug >= 3) {
+        printf("    rp->buffer_analyze from %d to %d (%d ticks)\n",
+               (int)(rp->buffer_analyze - rp->buffer),
+               (int)((rp->buffer_analyze - rp->buffer) - ticks * rp->samples_per_tick),
+               (int)ticks);
+    }
+    rp->buffer_analyze -= ticks * rp->samples_per_tick;
+}
+
+void regulator_buffer_rewind_by(struct regulator_t* rp, size_t samples) {
+    if (!samples) {
+        return;
+    }
+    if (rp->buffer_analyze - samples < rp->buffer) {
+        fprintf(stderr, "%s: UNEXPECTED ERROR 5\n", rp->progname);
+        exit(1);
+    }
+    rp->buffer_analyze -= samples;
 }
 
 size_t regulator_read(struct regulator_t* rp, size_t samples) {
@@ -322,6 +423,9 @@ size_t regulator_read(struct regulator_t* rp, size_t samples) {
     size_t samples_read;
     if (rp->buffer_end - samples < rp->buffer_append) {
         /* to have enough space to read the next batch of data... */
+        if (rp->debug >= 2) {
+            fprintf(stderr, "%s: not enough to read %d samples\n", rp->progname, (int)samples);
+        }
         regulator_buffer_shift_left_by(rp, samples - (rp->buffer_end - rp->buffer_append));
     }
     if (rp->filename == NULL) {
