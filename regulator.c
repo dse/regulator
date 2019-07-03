@@ -242,22 +242,28 @@ void regulator_show_tick(struct regulator_t* rp) {
     if (tick_start < rp->buffer) {
         return;
     }
-    int16_t* temp = (int16_t*)malloc(sizeof(int16_t*) * (rp->samples_per_tick / 20 + 1));
+    int lines = 20;
+    int16_t* temp = (int16_t*)malloc(sizeof(int16_t*) * (rp->samples_per_tick / lines + 1));
+    if (!temp) {
+        perror(rp->progname);
+        exit(1);
+    }
     putchar('\n');
-    for (size_t i = 0; i < 20; i += 1) {
-        int16_t* start = tick_start + (rp->samples_per_tick * i) / 20;
-        int16_t* end   = tick_start + ((rp->samples_per_tick + 1) * i) / 20;
+    for (size_t i = 0; i < lines; i += 1) {
+        int16_t* start = tick_start + (rp->samples_per_tick *    i   ) / lines;
+        int16_t* end   = tick_start + (rp->samples_per_tick * (i + 1)) / lines;
         size_t size = end - start;
         for (size_t j = 0; j < size; j += 1) {
             temp[i] = start[i];
         }
         qsort(temp, size, sizeof(int16_t), (qsort_function)int16_t_sort);
 
-        /* most significant six bits of 95th percentile maximum */
-        int16_t ninety_fifth = temp[size * 19 / 20] / (1 << (sizeof(int16_t) * 8 - 7));
+        /* most significant six bits of 95th percentile maximum, so 0 to 63 */
+        int16_t ninety_fifth = temp[size * 95 / 100] / (1 << (sizeof(int16_t) * 8 - 7));
 
-        printf("%*s\n", (int)ninety_fifth + 1, ".");
+        printf("%*s\n", (int)ninety_fifth + 1, "#");
     }
+    free(temp);
 }
 
 void regulator_cleanup(struct regulator_t* rp) {
