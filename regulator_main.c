@@ -23,7 +23,8 @@ int main(int argc, char* const argv[]) {
     regulator_cleanup(&r);
 }
 
-char* regulator_set_progname(struct regulator_t* rp, int argc, char* const argv[]) {
+char* regulator_set_progname(struct regulator_t* rp,
+                             int argc, char* const argv[]) {
     char* p;
     if (argc < 1) {
         rp->progname = "regulator";
@@ -51,7 +52,8 @@ void regulator_usage(struct regulator_t* rp) {
     puts("        --ticks-per-hour=<ticks>    specify ticks per hour");
 }
 
-void regulator_options(struct regulator_t* rp, int* argcp, char* const** argvp) {
+void regulator_options(struct regulator_t* rp,
+                       int* argcp, char* const** argvp) {
     int c;
 
     char optstring[] = "hf:D";
@@ -68,7 +70,8 @@ void regulator_options(struct regulator_t* rp, int* argcp, char* const** argvp) 
     while (1) {
         /* int this_option_optind = optind ? optind : 1; */
         int option_index = 0;
-        c = getopt_long(*argcp, *argvp, optstring, long_options, &option_index);
+        c = getopt_long(*argcp, *argvp, optstring, long_options,
+                        &option_index);
         if (c == -1) {
             break;
         }
@@ -81,13 +84,17 @@ void regulator_options(struct regulator_t* rp, int* argcp, char* const** argvp) 
                 errno = 0;
                 rp->ticks_per_hour = (int)strtol(optarg, (char**)NULL, 10);
                 if (rp->ticks_per_hour < 1) {
-                    fprintf(stderr, "%s: invalid --ticks-per-hour value: %s\n", rp->progname, optarg);
+                    fprintf(stderr,
+                            "%s: invalid --ticks-per-hour value: %s\n",
+                            rp->progname, optarg);
                     exit(1);
                 }
             } else if (!strcmp(longoptname, "debug")) {
                 rp->debug += 1;
             } else {
-                fprintf(stderr, "%s: option not implemented: --%s\n", rp->progname, longoptname);
+                fprintf(stderr,
+                        "%s: option not implemented: --%s\n",
+                        rp->progname, longoptname);
                 exit(1);
             }
             break;
@@ -108,13 +115,19 @@ void regulator_options(struct regulator_t* rp, int* argcp, char* const** argvp) 
             regulator_usage(rp);
             exit(0);
         case '?':
-            fprintf(stderr, "%s: unknown or ambiguous option: %s\n", rp->progname, "?"); /* FIXME */
+            fprintf(stderr,
+                    "%s: unknown or ambiguous option: %s\n",
+                    rp->progname, "?"); /* FIXME */
             exit(1);
         case ':':
-            fprintf(stderr, "%s: option missing argument: %s\n", rp->progname, "?"); /* FIXME */
+            fprintf(stderr,
+                    "%s: option missing argument: %s\n",
+                    p->progname, "?"); /* FIXME */
             exit(1);
         default:
-            fprintf(stderr, "%s: ?? getopt returned character code 0x%02x ??\n", rp->progname, c);
+            fprintf(stderr,
+                    "%s: ?? getopt returned character code 0x%02x ??\n",
+                    rp->progname, c);
             exit(1);
         }
     }
