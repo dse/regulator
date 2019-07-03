@@ -22,9 +22,9 @@ test: $(EXECUTABLES)
 	@./regulator --ticks-per-hour=18000 --file=sample-data/acs1-upright-1.wav
 	@./regulator --ticks-per-hour=18000 --file=sample-data/acs1-upright-2.wav
 test-debug: $(EXECUTABLES)
-	@./regulator -D -D --ticks-per-hour=12000 --file=sample-data/westclox-facedown.wav
-	@./regulator -D -D --ticks-per-hour=12000 --file=sample-data/westclox-upright.wav
-	@./regulator -D -D --ticks-per-hour=18000 --file=sample-data/acs1-facedown-1.wav
-	@./regulator -D -D --ticks-per-hour=18000 --file=sample-data/acs1-facedown-2.wav
-	@./regulator -D -D --ticks-per-hour=18000 --file=sample-data/acs1-upright-1.wav
-	@./regulator -D -D --ticks-per-hour=18000 --file=sample-data/acs1-upright-2.wav
+	@./regulator -D -D -D --ticks-per-hour=12000 --file=sample-data/westclox-facedown.wav
+	@./regulator -D -D -D --ticks-per-hour=12000 --file=sample-data/westclox-upright.wav
+	@./regulator -D -D -D --ticks-per-hour=18000 --file=sample-data/acs1-facedown-1.wav
+	@./regulator -D -D -D --ticks-per-hour=18000 --file=sample-data/acs1-facedown-2.wav
+	@./regulator -D -D -D --ticks-per-hour=18000 --file=sample-data/acs1-upright-1.wav
+	@./regulator -D -D -D --ticks-per-hour=18000 --file=sample-data/acs1-upright-2.wav
