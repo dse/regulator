@@ -70,7 +70,7 @@ void regulator_sndfile_close(struct regulator_t* rp) {
         sf_close(ip->sf);       /* don't care about return value */
     }
     regulator_sndfile_t sndfile = {};
-    rp->implementation.sndfile = sndfile.
+    rp->implementation.sndfile = sndfile;
 }
 
 #define CHANNEL_NUMBER 0
