@@ -82,6 +82,20 @@ void regulator_pulseaudio_open(struct regulator_t* rp) {
     }
 }
 
+void regulator_pulseaudio_close(struct regulator_t* rp) {
+    regulator_pulseaudio_t *ip = &(rp->implementation.pulseaudio);
+    if (rp->sample_sort_buffer) {
+        free(rp->sample_sort_buffer);
+        rp->sample_sort_buffer = NULL;
+    }
+    if (ip->pa_s) {
+        pa_simple_free(ip->pa_s);
+        ip->pa_s = NULL;
+    }
+    regulator_pulseaudio_t pulseaudio = {};
+    rp->implementation.pulseaudio = pulseaudio;
+}
+
 size_t regulator_pulseaudio_read(struct regulator_t* rp, int16_t* buffer, size_t samples) {
     regulator_pulseaudio_t *ip = &(rp->implementation.pulseaudio);
     size_t i;

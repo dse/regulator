@@ -14,6 +14,7 @@
 
 char* regulator_set_progname(struct regulator_t* rp, int argc, char* const argv[]);
 void regulator_run(struct regulator_t* rp);
+void regulator_cleanup(struct regulator_t* rp);
 size_t regulator_read(struct regulator_t* rp, size_t samples);
 void regulator_analyze_tick(struct regulator_t* rp);
 void regulator_usage(struct regulator_t* rp);

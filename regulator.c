@@ -29,6 +29,7 @@ int main(int argc, char* const argv[]) {
     regulator_set_progname(&r, argc, argv);
     regulator_options(&r, &argc, &argv);
     regulator_run(&r);
+    regulator_cleanup(&r);
 }
 
 char* regulator_set_progname(struct regulator_t* rp, int argc, char* const argv[]) {
@@ -290,6 +291,23 @@ void regulator_run(struct regulator_t* rp) {
     if (rp->debug >= 1) {
         printf("%d good data points out of %d wanted\n", (int)rp->good_tick_count, (int)rp->tick_count);
     }
+}
+
+void regulator_cleanup(struct regulator_t* rp) {
+    if (rp->tick_peak_data) {
+        free(rp->tick_peak_data);
+        rp->tick_peak_data = NULL;
+    }
+    if (rp->buffer) {
+        free(rp->buffer);
+        rp->buffer = NULL;
+    }
+    if (rp->type == REGULATOR_TYPE_PULSEAUDIO) {
+        regulator_pulseaudio_close(rp);
+    } else if (rp->type == REGULATOR_TYPE_SNDFILE) {
+        regulator_sndfile_close(rp);
+    }
+    rp->type = REGULATOR_TYPE_NONE;
 }
 
 int regulator_buffer_can_shift_left_by(struct regulator_t* rp, size_t samples) {

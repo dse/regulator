@@ -55,6 +55,24 @@ void regulator_sndfile_open(struct regulator_t* rp) {
     }
 }
 
+void regulator_sndfile_close(struct regulator_t* rp) {
+    regulator_sndfile_t *ip = &(rp->implementation.sndfile);
+
+    if (rp->sample_sort_buffer) {
+        free(rp->sample_sort_buffer);
+        rp->sample_sort_buffer = NULL;
+    }
+    if (ip->sf_sample_buffer) {
+        free(ip->sf_sample_buffer);
+        ip->sf_sample_buffer = NULL;
+    }
+    if (ip->sf) {
+        sf_close(ip->sf);       /* don't care about return value */
+    }
+    regulator_sndfile_t sndfile = {};
+    rp->implementation.sndfile = sndfile.
+}
+
 #define CHANNEL_NUMBER 0
 
 size_t regulator_sndfile_read(struct regulator_t* rp, int16_t* buffer, size_t samples) {
