@@ -299,7 +299,8 @@ void regulator_cleanup(struct regulator_t* rp) {
     rp->type = REGULATOR_TYPE_NONE;
 }
 
-int regulator_buffer_can_shift_left_by(struct regulator_t* rp, size_t samples) {
+int regulator_buffer_can_shift_left_by(struct regulator_t* rp,
+                                       size_t samples) {
     if (!samples) {
         return 1;
     }
@@ -312,7 +313,8 @@ int regulator_buffer_can_shift_left_by(struct regulator_t* rp, size_t samples) {
     return 1;
 }
 
-void regulator_buffer_shift_left_by(struct regulator_t* rp, size_t samples) {
+void regulator_buffer_shift_left_by(struct regulator_t* rp,
+                                    size_t samples) {
     if (!samples) {
         return;
     }
@@ -341,9 +343,8 @@ void regulator_buffer_shift_left_by(struct regulator_t* rp, size_t samples) {
     rp->buffer_analyze -= samples;
 }
 
-int regulator_buffer_can_shift_left_to_have(
-    struct regulator_t* rp, size_t samples
-) {
+int regulator_buffer_can_shift_left_to_have(struct regulator_t* rp,
+                                            size_t samples) {
     if (rp->buffer_append - samples < rp->buffer) {
         return 0;
     }
@@ -357,9 +358,8 @@ int regulator_buffer_can_shift_left_to_have(
     return 1;
 }
 
-void regulator_buffer_shift_left_to_have(
-    struct regulator_t* rp, size_t samples
-) {
+void regulator_buffer_shift_left_to_have(struct regulator_t* rp,
+                                         size_t samples) {
     if (rp->buffer_append - samples < rp->buffer) {
         fprintf(stderr, "%s: UNEXPECTED ERROR 3\n", rp->progname);
         exit(1);
