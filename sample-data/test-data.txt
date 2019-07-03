@@ -1,0 +1,6 @@
+your clock is slow by 169.507065 seconds per day
+your clock is fast by 31.135384 seconds per day
+your clock is slow by 8.230268 seconds per day
+your clock is slow by 7.370263 seconds per day
+your clock is slow by 28.262266 seconds per day
+your clock is slow by 34.677551 seconds per day
