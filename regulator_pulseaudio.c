@@ -45,7 +45,9 @@ void regulator_pulseaudio_open(struct regulator_t* rp) {
     }
 
     if ((3600 * ip->pa_ss.rate) % rp->ticks_per_hour) {
-        fprintf(stderr, "%s: can't process --ticks-per-hour=%d, sample rate is %d/sec\n",
+        fprintf(stderr,
+                "%s: can't process --ticks-per-hour=%d, "
+                "sample rate is %d/sec\n",
                 rp->progname, (int)rp->ticks_per_hour, ip->pa_ss.rate);
         exit(1);
     }
@@ -53,7 +55,8 @@ void regulator_pulseaudio_open(struct regulator_t* rp) {
 
     rp->sample_buffer_frames  = rp->samples_per_tick;
     rp->sample_buffer_samples = rp->sample_buffer_frames * ip->pa_ss.channels;
-    rp->sample_buffer_bytes   = pa_bytes_per_second(&(ip->pa_ss)) * 3600 / rp->ticks_per_hour;
+    rp->sample_buffer_bytes   =
+        pa_bytes_per_second(&(ip->pa_ss)) * 3600 / rp->ticks_per_hour;
     rp->bytes_per_frame       = ip->pa_ss.channels * sizeof(int16_t);
     rp->frames_per_second     = ip->pa_ss.rate;
 
@@ -70,7 +73,8 @@ void regulator_pulseaudio_open(struct regulator_t* rp) {
                              &(ip->pa_ba),     /* buffering attributes */
                              &(ip->pa_error)); /* error code */
     if (!ip->pa_s) {
-        fprintf(stderr, "%s: pa_simple_new() failed: %s\n", rp->progname, pa_strerror(ip->pa_error));
+        fprintf(stderr, "%s: pa_simple_new() failed: %s\n",
+                rp->progname, pa_strerror(ip->pa_error));
         exit(1);
     }
 
@@ -96,17 +100,21 @@ void regulator_pulseaudio_close(struct regulator_t* rp) {
     rp->implementation.pulseaudio = pulseaudio;
 }
 
-size_t regulator_pulseaudio_read(struct regulator_t* rp, int16_t* buffer, size_t samples) {
+size_t regulator_pulseaudio_read(struct regulator_t* rp,
+                                 int16_t* buffer, size_t samples) {
     regulator_pulseaudio_t *ip = &(rp->implementation.pulseaudio);
     size_t i;
     int16_t* samplep;
 
-    if (pa_simple_read(ip->pa_s, buffer, samples * rp->bytes_per_frame, &(ip->pa_error)) < 0) {
-        fprintf(stderr, "%s: pa_simple_read failed: %s\n", rp->progname, pa_strerror(ip->pa_error));
+    if (pa_simple_read(ip->pa_s, buffer, samples * rp->bytes_per_frame,
+                       &(ip->pa_error)) < 0) {
+        fprintf(stderr, "%s: pa_simple_read failed: %s\n",
+                rp->progname, pa_strerror(ip->pa_error));
         exit(1);
     }
 
-    /* if on a big-endian system, convert from little endian by swapping bytes, lol */
+    /* if on a big-endian system, convert from little endian by
+       swapping bytes, lol */
     if (!IS_LITTLE_ENDIAN) {
         char* a;
         char* b;
