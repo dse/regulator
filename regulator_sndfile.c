@@ -26,12 +26,14 @@ void regulator_sndfile_open(struct regulator_t* rp) {
 
     ip->sf = sf_open(rp->filename, SFM_READ, &(ip->sfinfo));
     if (!ip->sf) {
-        fprintf(stderr, "%s: unable to open %s: %s\n", rp->progname, rp->filename, sf_strerror(NULL));
+        fprintf(stderr, "%s: unable to open %s: %s\n",
+                rp->progname, rp->filename, sf_strerror(NULL));
         exit(1);
     }
 
     if ((3600 * ip->sfinfo.samplerate) % rp->ticks_per_hour) {
-        fprintf(stderr, "%s: can't process --ticks-per-hour=%d with this file, sample rate is %d/sec\n",
+        fprintf(stderr, "%s: can't process --ticks-per-hour=%d "
+                "with sample rate %d/sec\n",
                 rp->progname, (int)rp->ticks_per_hour, ip->sfinfo.samplerate);
         exit(1);
     }
@@ -75,17 +77,21 @@ void regulator_sndfile_close(struct regulator_t* rp) {
 
 #define CHANNEL_NUMBER 0
 
-size_t regulator_sndfile_read(struct regulator_t* rp, int16_t* buffer, size_t samples) {
+size_t regulator_sndfile_read(struct regulator_t* rp,
+                              int16_t* buffer, size_t samples) {
     regulator_sndfile_t *ip = &(rp->implementation.sndfile);
     sf_count_t sf_frames;
     sf_count_t i;
     int sample;                 /* int, as read from sf_readf_int */
-    if ((sf_frames = sf_readf_int(ip->sf, ip->sf_sample_buffer, samples)) <= 0) {
+    if ((sf_frames = sf_readf_int(ip->sf, ip->sf_sample_buffer,
+                                  samples)) <= 0) {
         return 0;
     }
     for (i = 0; i < sf_frames; i += 1) {
         /* quantize an int to an int16_t */
-        sample = ip->sf_sample_buffer[i * ip->sfinfo.channels + CHANNEL_NUMBER] / (1 << ((sizeof(int) - sizeof(int16_t)) * 8));
+        sample =
+            ip->sf_sample_buffer[i * ip->sfinfo.channels + CHANNEL_NUMBER] /
+            (1 << ((sizeof(int) - sizeof(int16_t)) * 8));
         if (sample == INT16_MIN) { /* -32768 => 32767 */
             sample = INT16_MAX;
         } else if (sample < 0) {
