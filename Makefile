@@ -9,7 +9,7 @@ EXECUTABLES = regulator
 
 all: $(EXECUTABLES)
 
-regulator: regulator.o regulator_sndfile.o regulator_pulseaudio.o
+regulator: regulator.o regulator_main.o regulator_sndfile.o regulator_pulseaudio.o
 
 clean:
 	rm $(OBJECTS) $(EXECUTABLES) >/dev/null 2>/dev/null || true

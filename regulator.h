@@ -42,7 +42,11 @@ extern int16_t _endian_test;
 #endif
 #define IS_LITTLE_ENDIAN (*((char*)&_endian_test))
 
+#ifdef REGULATOR_C
+char *progname;
+#else
 extern char* progname;
+#endif
 
 typedef int(*qsort_function)(const void*, const void*);
 
