@@ -243,13 +243,15 @@ void regulator_show_tick(struct regulator_t* rp) {
         return;
     }
     int lines = 20;
-    int16_t* temp = (int16_t*)malloc(sizeof(int16_t*) * (rp->samples_per_tick / lines + 1));
+    int16_t* temp =
+        (int16_t*)malloc(sizeof(int16_t*) *
+                         (rp->samples_per_tick / lines + 1));
     if (!temp) {
         perror(rp->progname);
         exit(1);
     }
     putchar('\n');
-    for (size_t i = 0; i < lines; i += 1) {
+    for (size_t i = 0; i < (size_t)lines; i += 1) {
         int16_t* start = tick_start + (rp->samples_per_tick *    i   ) / lines;
         int16_t* end   = tick_start + (rp->samples_per_tick * (i + 1)) / lines;
         size_t size = end - start;
@@ -258,8 +260,10 @@ void regulator_show_tick(struct regulator_t* rp) {
         }
         qsort(temp, size, sizeof(int16_t), (qsort_function)int16_t_sort);
 
-        /* most significant six bits of 95th percentile maximum, so 0 to 63 */
-        int16_t ninety_fifth = temp[size * 95 / 100] / (1 << (sizeof(int16_t) * 8 - 7));
+        /* most significant six bits of 95th percentile maximum, so 0
+           to 63 */
+        int16_t ninety_fifth = temp[size * 95 / 100] /
+            (1 << (sizeof(int16_t) * 8 - 7));
 
         for (int j = 0; j < ninety_fifth; j += 1) {
             putchar('#');
