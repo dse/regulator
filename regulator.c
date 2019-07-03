@@ -26,6 +26,7 @@ void regulator_read_first_batch_of_ticks(struct regulator_t* rp) {
             fprintf(stderr, "%s: not enough data\n", rp->progname);
             exit(1);
         }
+        regulator_show_tick(rp);
     }
 }
 
@@ -93,6 +94,7 @@ void regulator_run(struct regulator_t* rp) {
             fprintf(stderr, "%s: not enough data\n", rp->progname);
             exit(1);
         }
+        regulator_show_tick(rp);
         rp->buffer_analyze += rp->samples_per_tick / 2;
 
         /* be kind, rewind */
@@ -156,6 +158,7 @@ void regulator_run(struct regulator_t* rp) {
                 /* no more data */
                 break;
             }
+            regulator_show_tick(rp);
             rp->buffer_analyze =
                 rp->buffer_analyze + extra_samples - rp->samples_per_tick;
             if (rp->debug >= 2) {
@@ -186,6 +189,7 @@ void regulator_run(struct regulator_t* rp) {
                 /* no more data */
                 break;
             }
+            regulator_show_tick(rp);
             rp->buffer_analyze += extra_samples;
             if (rp->debug >= 2) {
                 printf("shifting ticks 0 through %d by %d\n",
@@ -207,6 +211,7 @@ void regulator_run(struct regulator_t* rp) {
                 /* no more data */
                 break;
             }
+            regulator_show_tick(rp);
         }
 
         regulator_analyze_tick(rp);
@@ -229,6 +234,29 @@ void regulator_run(struct regulator_t* rp) {
     if (rp->debug >= 1) {
         printf("%d good data points out of %d wanted\n",
                (int)rp->good_tick_count, (int)rp->tick_count);
+    }
+}
+
+void regulator_show_tick(struct regulator_t* rp) {
+    int16_t* tick_start = rp->buffer_append - rp->samples_per_tick;
+    if (tick_start < rp->buffer) {
+        return;
+    }
+    int16_t* temp = (int16_t*)malloc(sizeof(int16_t*) * (rp->samples_per_tick / 20 + 1));
+    putchar('\n');
+    for (size_t i = 0; i < 20; i += 1) {
+        int16_t* start = tick_start + (rp->samples_per_tick * i) / 20;
+        int16_t* end   = tick_start + ((rp->samples_per_tick + 1) * i) / 20;
+        size_t size = end - start;
+        for (size_t j = 0; j < size; j += 1) {
+            temp[i] = start[i];
+        }
+        qsort(temp, size, sizeof(int16_t), (qsort_function)int16_t_sort);
+
+        /* most significant six bits of 95th percentile maximum */
+        int16_t ninety_fifth = temp[size * 19 / 20] / (1 << (sizeof(int16_t) * 8 - 7));
+
+        printf("%*s\n", (int)ninety_fifth + 1, ".");
     }
 }
 
@@ -539,6 +567,13 @@ int sample_sort(const regulator_sample_t* a, const regulator_sample_t* b) {
  * Helper function for peak finding.
  */
 int size_t_sort(const size_t* a, const size_t* b) {
+    return (*a < *b) ? -1 : (*a > *b) ? 1 : 0;
+}
+
+/**
+ * Helper function for displaying ticks.
+ */
+int int16_t_sort(const int16_t* a, const int16_t* b) {
     return (*a < *b) ? -1 : (*a > *b) ? 1 : 0;
 }
 

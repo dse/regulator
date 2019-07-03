@@ -32,11 +32,13 @@ int regulator_buffer_can_shift_left_to_have(struct regulator_t* rp,
 int regulator_buffer_can_rewind_by(struct regulator_t* rp, size_t samples);
 void regulator_buffer_rewind_by(struct regulator_t* rp, size_t samples);
 void regulator_buffer_rewind_max_ticks(struct regulator_t* rp);
+void regulator_show_tick(struct regulator_t* rp);
 
 float kt_best_fit(tick_peak_t* data, size_t ticks);
 
 int sample_sort(const regulator_sample_t* a, const regulator_sample_t* b);
 int size_t_sort(const size_t* a, const size_t* b);
+int int16_t_sort(const int16_t* a, const int16_t* b);
 int float_sort(const float* a, const float* b);
 
 /* You are not expected to understand this. */
