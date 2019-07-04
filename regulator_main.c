@@ -14,11 +14,23 @@
 
 #include "regulator.h"
 #include "regulator_main.h"
+#include "regulator_pulseaudio.h"
 
 int main(int argc, char* const argv[]) {
     regulator_t r = {};
     regulator_set_progname(&r, argc, argv);
     regulator_options(&r, &argc, &argv);
+    if (argc >= 1 && (!strcmp(argv[0], "test-vu") ||
+                      !strcmp(argv[0], "vu") ||
+                      !strcmp(argv[0], "test-mic") ||
+                      !strcmp(argv[0], "mic"))) {
+        regulator_pulseaudio_test(&r);
+        exit(0);
+    }
+    if (!r.ticks_per_hour) {
+        fprintf(stderr, "%s: --ticks-per-hour is required\n", r.progname);
+        exit(1);
+    }
     regulator_run(&r);
     regulator_cleanup(&r);
 }
@@ -66,6 +78,8 @@ void regulator_options(struct regulator_t* rp,
         { "file",           required_argument, NULL, 'f' },
         { "ticks-per-hour", required_argument, NULL, 0   },
         { "debug",          no_argument,       NULL, 'D' },
+        { "stats",          no_argument,       NULL, 0   },
+        { "ticks",          no_argument,       NULL, 0   },
         { NULL,             0,                 NULL, 0   }
     };
 
@@ -93,6 +107,10 @@ void regulator_options(struct regulator_t* rp,
                 }
             } else if (!strcmp(longoptname, "debug")) {
                 rp->debug += 1;
+            } else if (!strcmp(longoptname, "stats")) {
+                rp->show_stats += 1;
+            } else if (!strcmp(longoptname, "ticks")) {
+                rp->show_ticks += 1;
             } else {
                 fprintf(stderr,
                         "%s: option not implemented: --%s\n",
