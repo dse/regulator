@@ -33,6 +33,8 @@ int regulator_buffer_can_rewind_by(struct regulator_t* rp, size_t samples);
 void regulator_buffer_rewind_by(struct regulator_t* rp, size_t samples);
 void regulator_buffer_rewind_max_ticks(struct regulator_t* rp);
 void regulator_show_tick(struct regulator_t* rp);
+void regulator_process_tick(struct regulator_t* rp);
+void regulator_show_result(struct regulator_t* rp);
 
 float kt_best_fit(tick_peak_t* data, size_t ticks);
 
