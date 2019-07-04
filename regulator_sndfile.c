@@ -49,11 +49,13 @@ void regulator_sndfile_open(struct regulator_t* rp) {
         perror(rp->progname);
         exit(1);
     }
-    if (!(rp->sample_sort_buffer =
-          (regulator_sample_t*)
-          malloc(rp->sample_buffer_frames * sizeof(regulator_sample_t)))) {
-        perror(rp->progname);
-        exit(1);
+    if (!rp->no_sample_sort_buffer) {
+        if (!(rp->sample_sort_buffer =
+              (regulator_sample_t*)
+              malloc(rp->sample_buffer_frames * sizeof(regulator_sample_t)))) {
+            perror(rp->progname);
+            exit(1);
+        }
     }
 }
 
