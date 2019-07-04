@@ -51,6 +51,7 @@ typedef struct regulator_t {
     size_t sample_buffer_bytes;   /* e.g., 17640 * 2 = 35280 for 16-bit */
     size_t bytes_per_frame;       /* e.g., 2 * 2     = 4 for 16-bit stereo */
     size_t frames_per_second;     /* e.g.,             44100 */
+    int no_sample_sort_buffer;
     regulator_sample_t* sample_sort_buffer; /* for finding peaks */
 
     size_t   tick_count;
@@ -75,6 +76,9 @@ typedef struct regulator_t {
 
     regulator_type_t type;
     regulator_implementation_t implementation;
+
+    int show_ticks;
+    int show_stats;
 } regulator_t;
 
 #endif  /* REGULATOR_TYPES_H */
