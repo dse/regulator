@@ -1,8 +1,10 @@
 LIBRARIES = libpulse-simple sndfile
 
-CFLAGS += -g -Wall -Wextra -std=c99 -D_GNU_SOURCE \
+# _ISOC99_SOURCE for roundf
+# _GNU_SOURCE for strdup
+CFLAGS += -g -Wall -Wextra -std=c99 -D_GNU_SOURCE -D_ISOC99_SOURCE \
 	$(shell pkg-config --cflags $(LIBRARIES))
-LDLIBS += $(shell pkg-config --libs $(LIBRARIES))
+LDLIBS += $(shell pkg-config --libs $(LIBRARIES)) -lm
 
 SOURCES = $(wildcard *.c)
 OBJECTS = $(patsubst %.c, %.o, $(SOURCES))
