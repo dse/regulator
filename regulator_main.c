@@ -40,6 +40,7 @@ char* regulator_set_progname(struct regulator_t* rp,
     return rp->progname;
 }
 
+#pragma GCC diagnostic ignored "-Wunused-parameter"
 void regulator_usage(struct regulator_t* rp) {
     puts("usage: regulator [<option> ...] [<command>]");
     puts("commands:");
@@ -51,6 +52,7 @@ void regulator_usage(struct regulator_t* rp) {
     puts("    -f, --file=<file>               read data from sound file");
     puts("        --ticks-per-hour=<ticks>    specify ticks per hour");
 }
+#pragma GCC diagnostic warning "-Wunused-parameter"
 
 void regulator_options(struct regulator_t* rp,
                        int* argcp, char* const** argvp) {
