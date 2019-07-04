@@ -26,7 +26,7 @@ void regulator_read_first_batch_of_ticks(struct regulator_t* rp) {
             fprintf(stderr, "%s: not enough data\n", rp->progname);
             exit(1);
         }
-        regulator_show_tick(rp);
+        regulator_process_tick(rp);
     }
 }
 
@@ -94,7 +94,7 @@ void regulator_run(struct regulator_t* rp) {
             fprintf(stderr, "%s: not enough data\n", rp->progname);
             exit(1);
         }
-        regulator_show_tick(rp);
+        regulator_process_tick(rp);
         rp->buffer_analyze += rp->samples_per_tick / 2;
 
         /* be kind, rewind */
@@ -158,7 +158,7 @@ void regulator_run(struct regulator_t* rp) {
                 /* no more data */
                 break;
             }
-            regulator_show_tick(rp);
+            regulator_process_tick(rp);
             rp->buffer_analyze =
                 rp->buffer_analyze + extra_samples - rp->samples_per_tick;
             if (rp->debug >= 2) {
@@ -189,7 +189,7 @@ void regulator_run(struct regulator_t* rp) {
                 /* no more data */
                 break;
             }
-            regulator_show_tick(rp);
+            regulator_process_tick(rp);
             rp->buffer_analyze += extra_samples;
             if (rp->debug >= 2) {
                 printf("shifting ticks 0 through %d by %d\n",
@@ -211,12 +211,15 @@ void regulator_run(struct regulator_t* rp) {
                 /* no more data */
                 break;
             }
-            regulator_show_tick(rp);
+            regulator_process_tick(rp);
         }
 
         regulator_analyze_tick(rp);
     }
+    regulator_show_result(rp);
+}
 
+void regulator_show_result(struct regulator_t* rp) {
     /* in samples per tick, -/+ fast/slow */
     float drift = kt_best_fit(rp->tick_peak_data, rp->tick_peak_count);
 
@@ -256,7 +259,7 @@ void regulator_show_tick(struct regulator_t* rp) {
         int16_t* end   = tick_start + (rp->samples_per_tick * (i + 1)) / lines;
         size_t size = end - start;
         for (size_t j = 0; j < size; j += 1) {
-            temp[i] = start[i];
+            temp[j] = start[j];
         }
         qsort(temp, size, sizeof(int16_t), (qsort_function)int16_t_sort);
 
@@ -453,6 +456,10 @@ void regulator_analyze_tick(struct regulator_t* rp) {
     size_t low_indexes = 0;
     size_t high_indexes = 0;
 
+    if (!rp->sample_sort_buffer) {
+        return;
+    }
+
     for (size_t i = 0; i < rp->samples_per_tick; i += 1) {
         rp->sample_sort_buffer[i].sample = rp->buffer_analyze[i];
         rp->sample_sort_buffer[i].index = i;
@@ -529,6 +536,22 @@ void regulator_analyze_tick(struct regulator_t* rp) {
         if (rp->debug >= 2) {
             printf("data not good enough at tick # %6d\n",
                    (int)rp->tick_count);
+        }
+    }
+}
+
+void regulator_process_tick(regulator_t* rp) {
+    if (rp->show_ticks) {
+        regulator_show_tick(rp);
+    }
+    if (rp->show_stats) {
+        if (isatty(fileno(stdout))) {
+            putchar('.');
+            fflush(stdout);
+        }
+        if (rp->tick_count >= 40 && rp->tick_count % 20 == 0) {
+            putchar('\n');
+            regulator_show_result(rp);
         }
     }
 }
