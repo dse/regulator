@@ -15,10 +15,13 @@
 #include <unistd.h>
 #include <string.h>
 #include <stdlib.h>
+#include <signal.h>
 
 #include "regulator.h"
 #include "regulator_pulseaudio.h"
 #include "regulator_sndfile.h"
+
+struct regulator_t* regulator_sighandler_ptr = NULL;
 
 void regulator_read_first_batch_of_ticks(struct regulator_t* rp) {
     for (; rp->tick_count < TICKS_PER_GROUP; rp->tick_count += 1) {
@@ -81,6 +84,9 @@ void regulator_run(struct regulator_t* rp) {
     rp->good_tick_count = 0;
     rp->tick_peak_count = 0;
     rp->boundary_peak_count = 0;
+
+    regulator_sighandler_ptr = rp;
+    signal(SIGINT, regulator_sighandler);
 
     regulator_read_first_batch_of_ticks(rp);
     regulator_analyze_first_batch_of_ticks(rp);
@@ -216,27 +222,46 @@ void regulator_run(struct regulator_t* rp) {
 
         regulator_analyze_tick(rp);
     }
-    regulator_show_result(rp);
+    signal(SIGINT, SIG_DFL);
+    regulator_show_result(rp, 0);
 }
 
-void regulator_show_result(struct regulator_t* rp) {
+void regulator_sighandler(int signal) {
+    putchar('\n');
+    regulator_show_result(regulator_sighandler_ptr, 0);
+    exit(0);
+}
+
+float regulator_result(struct regulator_t* rp, size_t ticks) {
+    if (!ticks || ticks > rp->tick_peak_count) {
+        ticks = rp->tick_peak_count;
+    }
+
     /* in samples per tick, -/+ fast/slow */
-    float drift = kt_best_fit(rp->tick_peak_data, rp->tick_peak_count);
+    float drift = kt_best_fit(rp->tick_peak_data + rp->tick_peak_count - ticks,
+                              ticks);
 
     /* in seconds per day, -/+ slow/fast */
     drift = -drift / rp->frames_per_second * rp->ticks_per_hour * 24;
 
-    if (drift < 0) {
-        printf("your clock is slow by %f seconds per day\n", (double)(-drift));
-    } else if (drift > 0) {
-        printf("your clock is fast by %f seconds per day\n", (double)drift);
-    } else {
-        printf("perfect!\n");
-    }
+    return drift;
+}
 
-    if (rp->debug >= 1) {
-        printf("%d good data points out of %d wanted\n",
-               (int)rp->good_tick_count, (int)rp->tick_count);
+void regulator_show_result(struct regulator_t* rp, size_t ticks) {
+    float drift = regulator_result(rp, ticks);
+    if (ticks) {
+        printf("past %d data points: ", (int)ticks);
+    } else {
+        printf("all data: ");
+    }
+    printf("%f seconds %s\n",
+           (double)(drift < 0 ? -drift : drift),
+           (drift < 0 ? "slow" : "fast"));
+    if (!ticks) {
+        if (rp->debug >= 1) {
+            printf("%d good data points out of %d wanted\n",
+                   (int)rp->good_tick_count, (int)rp->tick_count);
+        }
     }
 }
 
@@ -546,12 +571,17 @@ void regulator_process_tick(regulator_t* rp) {
     }
     if (rp->show_stats) {
         if (isatty(fileno(stdout))) {
-            putchar('.');
+            if (rp->tick_peak_count) {
+                printf("%ld\r", (long)rp->this_tick_peak);
+            } else {
+                putchar('.');
+            }
             fflush(stdout);
         }
         if (rp->tick_count >= 40 && rp->tick_count % 20 == 0) {
             putchar('\n');
-            regulator_show_result(rp);
+            regulator_show_result(rp, 20);
+            regulator_show_result(rp, 0);
         }
     }
 }
