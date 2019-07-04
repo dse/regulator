@@ -8,6 +8,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <math.h>
 
 #include <pulse/simple.h>
 #include <pulse/error.h>
@@ -44,6 +45,10 @@ void regulator_pulseaudio_open(struct regulator_t* rp) {
         exit(1);
     }
 
+    if (!rp->ticks_per_hour) {
+        rp->ticks_per_hour = 3600; /* default */
+    }
+
     if ((3600 * ip->pa_ss.rate) % rp->ticks_per_hour) {
         fprintf(stderr,
                 "%s: can't process --ticks-per-hour=%d, "
@@ -60,8 +65,8 @@ void regulator_pulseaudio_open(struct regulator_t* rp) {
     rp->bytes_per_frame       = ip->pa_ss.channels * sizeof(int16_t);
     rp->frames_per_second     = ip->pa_ss.rate;
 
-    ip->pa_ba.maxlength = rp->sample_buffer_bytes;
-    ip->pa_ba.fragsize  = rp->sample_buffer_bytes;
+    ip->pa_ba.maxlength       = rp->sample_buffer_bytes;
+    ip->pa_ba.fragsize        = rp->sample_buffer_bytes;
 
     ip->pa_s = pa_simple_new(NULL,             /* server name */
                              rp->progname,     /* name */
@@ -78,11 +83,13 @@ void regulator_pulseaudio_open(struct regulator_t* rp) {
         exit(1);
     }
 
-    if (!(rp->sample_sort_buffer =
-          (regulator_sample_t*)
-          malloc(rp->sample_buffer_frames * sizeof(regulator_sample_t)))) {
-        perror(rp->progname);
-        exit(1);
+    if (!rp->no_sample_sort_buffer) {
+        if (!(rp->sample_sort_buffer =
+              (regulator_sample_t*)
+              malloc(rp->sample_buffer_frames * sizeof(regulator_sample_t)))) {
+            perror(rp->progname);
+            exit(1);
+        }
     }
 }
 
@@ -129,6 +136,7 @@ size_t regulator_pulseaudio_read(struct regulator_t* rp,
         }
     }
 
+    /* we want the amplitude, not the sign */
     for (i = 0; i < samples * ip->pa_ss.channels; i += 1) {
         samplep = buffer + i;
         if (*samplep == INT16_MIN) { /* -32768 => 32767 */
@@ -140,3 +148,62 @@ size_t regulator_pulseaudio_read(struct regulator_t* rp,
 
     return samples;
 }
+
+void regulator_pulseaudio_test(struct regulator_t* rp) {
+    float seconds = 0.05;
+
+    int save__no_sample_sort_buffer = rp->no_sample_sort_buffer;
+    rp->no_sample_sort_buffer = 1;
+    rp->ticks_per_hour = (size_t)roundf(3600.0 / seconds);
+    if (rp->debug >= 1) {
+        printf("regulator_pulseaudio_test: %d blocks per hour\n", (int)rp->ticks_per_hour);
+    }
+
+    regulator_pulseaudio_open(rp);
+
+    size_t frames = rp->sample_buffer_frames;
+    if (rp->debug >= 1) {
+        printf("regulator_pulseaudio_test: %d frames\n", (int)frames);
+    }
+
+    int16_t* buffer = (int16_t*)malloc(sizeof(int16_t) * frames);
+    if (!buffer) {
+        perror(rp->progname);
+        exit(1);
+    }
+    while (1) {
+        if (regulator_pulseaudio_read(rp, buffer, frames) < frames) {
+            break;
+        }
+        regulator_pulseaudio_vu(rp, buffer, frames);
+    }
+    free(buffer);
+
+    rp->no_sample_sort_buffer = save__no_sample_sort_buffer;
+}
+
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+void regulator_pulseaudio_vu(struct regulator_t* rp, int16_t* buffer, size_t frames) {
+    int16_t max = 0;
+    for (size_t i = 0; i < frames; i += 1) {
+        if (max < buffer[i]) {
+            max = buffer[i];
+        }
+    }
+
+    /* quantize to 6-bit integer (0 to 63) */
+    max = max / (1 << (sizeof(int16_t) * 8 - 7));
+
+    putchar('[');
+    int16_t i;
+    for (i = 0; i <= max; i += 1) {
+        putchar('#');
+    }
+    for (; i < 64; i += 1) {
+        putchar(' ');
+    }
+    putchar(']');
+    putchar('\r');
+    fflush(stdout);
+}
+#pragma GCC diagnostic warning "-Wunused-parameter"
